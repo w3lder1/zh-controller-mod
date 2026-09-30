@@ -44,7 +44,8 @@ body:
         - Multiplayer over a VPN (Hamachi, Radmin, ...)
         - Installing or uninstalling
     validations:
-      required: true  - type: textarea
+      required: true
+  - type: textarea
     id: what
     attributes:
       label: What happened, and what did you expect?
