@@ -1,0 +1,47 @@
+name: Feedback
+description: How the controller mod feels to play - what works, what doesn't, what you'd change
+labels: ["feedback"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for trying the controller mod! Any impression helps, short or long. Something clearly
+        broken? The **Bug report** form asks for the details that help fix it.
+  - type: input
+    id: version
+    attributes:
+      label: Controller mod version
+      description: Shown in the game window's title, or in ZH Controller\VERSION.txt in your game folder.
+      placeholder: "1.2.0"
+  - type: dropdown
+    id: played
+    attributes:
+      label: What did you play?
+      multiple: true
+      options:
+        - Skirmish
+        - Campaign
+        - Multiplayer on a LAN
+        - Multiplayer over a VPN (Hamachi, Radmin, ...)
+  - type: textarea
+    id: good
+    attributes:
+      label: What felt good?
+  - type: textarea
+    id: bad
+    attributes:
+      label: What felt wrong, slow or hard to find?
+  - type: textarea
+    id: multiplayer
+    attributes:
+      label: Multiplayer (if you tried it)
+      description: LAN or VPN, how many players, how far you got (lobby, joining, the match, the end), and what happened. Multiplayer is experimental, so "it didn't work" with details is useful too.
+  - type: input
+    id: controller
+    attributes:
+      label: Controller
+      placeholder: "Xbox One, wired"
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything else

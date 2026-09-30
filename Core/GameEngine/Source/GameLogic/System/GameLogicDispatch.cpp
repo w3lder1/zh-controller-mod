@@ -424,6 +424,16 @@ void GameLogic::logicMessageDispatcher( GameMessage *msg, void *userData )
 			msgPlayer->getPlayerIndex(), msgPlayer->getPlayerDisplayName().str()));
 	}
 #endif
+#if CONTROLLERMOD_ENABLE_TEST_INPUT
+	// ControllerMod @test Multiplayer sync tests (debug-logging test builds only) compare the
+	// commands each game copy ran and count which kinds the controller sent.
+	if (msg->getType() > GameMessage::MSG_BEGIN_NETWORK_MESSAGES && msg->getType() < GameMessage::MSG_END_NETWORK_MESSAGES
+		&& msg->getType() != GameMessage::MSG_LOGIC_CRC)
+	{
+		DEBUG_LOG(("ZHC-CMD frame %d player %d args %d %s", getFrame(), msgPlayer->getPlayerIndex(),
+			msg->getArgumentCount(), commandName.str()));
+	}
+#endif
 #endif // DEBUG_LOGGING
 
 	// process the message

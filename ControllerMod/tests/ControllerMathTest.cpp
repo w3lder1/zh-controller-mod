@@ -378,6 +378,36 @@ static void testReticleTiming()
 	check(reticleShouldAnimate(true, 0x80000000u, 250), "reticle: a wrapped timer does not block it");
 }
 
+static void testKeyboardMove()
+{
+	const int rows[6] = { 10, 10, 10, 10, 10, 4 };
+	int r = 0, c = 0;
+	keyboardMove(rows, 6, &r, &c, 2);
+	check(r == 0 && c == 9, "keyboard: left from the first key wraps to the row's end");
+	keyboardMove(rows, 6, &r, &c, 3);
+	check(r == 0 && c == 0, "keyboard: right from the row's end wraps to its start");
+	r = 4; c = 9;
+	keyboardMove(rows, 6, &r, &c, 1);
+	check(r == 5 && c == 3, "keyboard: down from the right end lands on the last wide key");
+	keyboardMove(rows, 6, &r, &c, 1);
+	check(r == 0 && c == 8, "keyboard: down from the last row wraps to the top, same side");
+	r = 5; c = 0;
+	keyboardMove(rows, 6, &r, &c, 0);
+	check(r == 4 && c == 1, "keyboard: up from a wide key lands under it");
+	r = 2; c = 5;
+	keyboardMove(rows, 6, &r, &c, 1);
+	check(r == 3 && c == 5, "keyboard: rows of the same length keep the column");
+	const int pad[5] = { 3, 3, 3, 3, 1 };
+	r = 3; c = 2;
+	keyboardMove(pad, 5, &r, &c, 1);
+	check(r == 4 && c == 0, "keyboard: number pad, down to the single Done key");
+	keyboardMove(pad, 5, &r, &c, 0);
+	check(r == 3 && c == 1, "keyboard: number pad, up from Done to the middle");
+	r = 7; c = 3;
+	keyboardMove(pad, 5, &r, &c, 1);
+	check(r == 0 && c == 0, "keyboard: an invalid position resets to the first key");
+}
+
 int main()
 {
 	testNormalizeAxis();
@@ -395,6 +425,7 @@ int main()
 	testHoldLatch();
 	testTypeCycle();
 	testReticleTiming();
+	testKeyboardMove();
 
 	printf("%d checks, %d failed\n", g_checks, g_failures);
 	return g_failures == 0 ? 0 : 1;

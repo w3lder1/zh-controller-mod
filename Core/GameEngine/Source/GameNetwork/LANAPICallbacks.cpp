@@ -33,6 +33,9 @@
 #include "Common/GameEngine.h"
 #include "Common/GlobalData.h"
 #include "Common/MessageStream.h"
+#if RTS_ZEROHOUR
+#include "GameNetwork/ControllerModLan.h"
+#endif
 #include "Common/MultiplayerSettings.h"
 #include "Common/PlayerTemplate.h"
 #include "Common/QuotedPrintable.h"
@@ -513,6 +516,35 @@ void LANAPI::OnPlayerJoin( Int slot, UnicodeString playerName )
 	lanUpdateSlotList();
 }
 
+#if RTS_ZEROHOUR
+/// ControllerMod @feature Why a Controller Mod player can't join this game (ControllerModLan.h).
+void ControllerModLan::showJoinRefusal(Int tagState, UnsignedShort version, UnsignedInt print)
+{
+	(void)print;
+	const UnicodeString ours = versionText(packedVersion());
+	UnicodeString body;
+	if (tagState != TAG_PRESENT)
+	{
+		body.format(L"This game is not running Zero Hour Controller Mod %ls. It may be normal Zero Hour or an "
+			L"older Controller Mod.\n\nController Mod players can only play with other players on the same "
+			L"Controller Mod version.", ours.str());
+	}
+	else if (version != packedVersion())
+	{
+		body.format(L"This game runs Zero Hour Controller Mod %ls. You have %ls.\n\nBoth players need the same "
+			L"Controller Mod version.", versionText(version).str(), ours.str());
+	}
+	else
+	{
+		body.format(L"This game runs the same Controller Mod version (%ls), but on a different program or "
+			L"different Zero Hour game data (for example a modified game, another mod, or not version 1.04).\n\n"
+			L"Both players need the same Controller Mod download on an unmodified Zero Hour 1.04.", ours.str());
+	}
+	DEBUG_LOG(("ControllerModLan::showJoinRefusal - join refused (tag state %d)", tagState));
+	MessageBoxOk(TheGameText->fetch("LAN:JoinFailed"), body, nullptr);
+}
+#endif
+
 void LANAPI::OnGameJoin( ReturnType ret, LANGameInfo *theGame )
 {
 	if (ret == RET_OK)
@@ -540,6 +572,16 @@ void LANAPI::OnGameJoin( ReturnType ret, LANGameInfo *theGame )
 		UnicodeString title, body;
 		title = TheGameText->fetch("LAN:JoinFailed");
 		body = getErrorStringFromReturnType(ret);
+#if RTS_ZEROHOUR
+		// ControllerMod @feature The game's own text for this speaks of a lost synchronization; here
+		// it means the host has another program or other game data (ControllerModLan.h).
+		if (ret == RET_CRC_MISMATCH)
+		{
+			body.format(L"The host runs a different Controller Mod version or different Zero Hour game data "
+				L"(you have Controller Mod %ls).\n\nBoth players need the same Controller Mod download on an "
+				L"unmodified Zero Hour 1.04.", ControllerModLan::versionText(ControllerModLan::packedVersion()).str());
+		}
+#endif
 		MessageBoxOk(title, body, nullptr);
 	}
 }

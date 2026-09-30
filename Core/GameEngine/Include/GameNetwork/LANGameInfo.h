@@ -153,6 +153,20 @@ public:
 			m_LANSlot[who].setLastHeard(lastHeard);
 	}
 
+#if RTS_ZEROHOUR
+	/// ControllerMod @feature What the host's announcements say about the Controller Mod (see
+	/// ControllerModLan.h): a ControllerModLan::TagState, the host's mod version and fingerprint.
+	void setControllerModTag(Int state, UnsignedShort version, UnsignedInt print)
+	{
+		m_modTagState = state;
+		m_modVersion = version;
+		m_modPrint = print;
+	}
+	Int getControllerModTagState() const { return m_modTagState; }
+	UnsignedShort getControllerModVersion() const { return m_modVersion; }
+	UnsignedInt getControllerModPrint() const { return m_modPrint; }
+#endif
+
 	/// Return the hosts IP or 0
 	UnsignedInt getHostIP()
 	{
@@ -167,6 +181,11 @@ private:
 	UnsignedInt m_lastHeard;														///< The last time we heard from this game (for timeout purposes)
 	UnicodeString m_gameName;														///< Game name.  @todo: are game names based off of host player names?
 	Bool m_isDirectConnect;															///< Is this game a direct connect game, or a LAN game?
+#if RTS_ZEROHOUR
+	Int m_modTagState;
+	UnsignedShort m_modVersion;
+	UnsignedInt m_modPrint;
+#endif
 };
 
 void LANDisplayGameList( GameWindow *gameListbox, LANGameInfo *gameList );	///< Displays the list of games in a listbox, preserving selections

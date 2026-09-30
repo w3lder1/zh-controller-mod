@@ -37,6 +37,9 @@
 #include "GameClient/MapUtil.h"
 #include "Common/UserPreferences.h"
 #include "GameLogic/GameLogic.h"
+#if RTS_ZEROHOUR
+#include "GameNetwork/ControllerModLan.h"
+#endif
 
 
 static const UnsignedShort lobbyPort = 8086; ///< This is the UDP port used by all LANAPI communication
@@ -181,6 +184,19 @@ void LANAPI::reset()
 
 void LANAPI::sendMessage(LANMessage *msg, UnsignedInt ip /* = 0 */)
 {
+#if RTS_ZEROHOUR
+	// ControllerMod @feature Game announcements and join acceptances carry the Controller Mod tag
+	// (ControllerModLan.h). An acceptance uses only the start of the packet; the tag goes after it.
+	static_assert(sizeof(msg->GameJoined) + ControllerModLan::TAG_BYTES <= sizeof(msg->GameInfo), "no room for the tag in a join acceptance");
+	if (!ControllerModLan::testActRetail())
+	{
+		if (msg->messageType == LANMessage::MSG_GAME_ANNOUNCE)
+			ControllerModLan::writeOptionsTag(msg->GameInfo.options, ARRAY_SIZE(msg->GameInfo.options));
+		else if (msg->messageType == LANMessage::MSG_JOIN_ACCEPT)
+			ControllerModLan::writeTag((UnsignedByte *)&msg->GameJoined + sizeof(msg->GameJoined));
+	}
+#endif
+
 	if (ip != 0)
 	{
 		m_transport->queueSend(ip, lobbyPort, (unsigned char *)msg, sizeof(LANMessage) /*, 0, 0 */);
@@ -633,6 +649,24 @@ void LANAPI::RequestGameJoin( LANGameInfo *game, UnsignedInt ip /* = 0 */ )
 		OnGameJoin( RET_GAME_GONE, nullptr );
 		return;
 	}
+
+#if RTS_ZEROHOUR
+	// ControllerMod @feature Only games of the same Controller Mod version on the same gameplay data;
+	// anything else would go out of sync during the match.
+	const Bool checkTag = !ControllerModLan::testSkipListCheck();
+	// (An unknown tag, from a big game whose options fill the announcement, is decided when the
+	// host answers: see handleJoinAccept.)
+	const Int tag = game->getControllerModTagState();
+	if (checkTag && (tag == ControllerModLan::TAG_ABSENT ||
+		(tag == ControllerModLan::TAG_PRESENT && game->getControllerModPrint() != ControllerModLan::fingerprint())))
+	{
+		m_pendingAction = ACT_NONE;
+		m_expiration = 0;
+		m_directConnectRemoteIP = 0;   // the host's next announcement must not try again
+		ControllerModLan::showJoinRefusal(tag, game->getControllerModVersion(), game->getControllerModPrint());
+		return;
+	}
+#endif
 
 	LANMessage msg;
 	msg.messageType = LANMessage::MSG_REQUEST_JOIN;

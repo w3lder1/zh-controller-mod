@@ -307,7 +307,10 @@ GameController::GameController() :
 	m_resetKeysDown(FALSE),
 	m_textRemapOff(FALSE),
 	m_testStartMs(0),
-	m_testFromStart(FALSE)
+	m_testBattleStartMs(0),
+	m_testFromStart(FALSE),
+	m_testStateEnabled(FALSE),
+	m_testStateNextMs(0)
 {
 	m_state.clear();
 	m_settings.setDefaults();
@@ -331,6 +334,18 @@ GameController::GameController() :
 		m_wheelLines[i] = nullptr;
 	for (Int i = 0; i < NUM_SETTINGS_LINES; ++i)
 		m_settingsLines[i] = nullptr;
+	for (Int i = 0; i < NUM_KEYBOARD_LINES; ++i)
+		m_keyboardLines[i] = nullptr;
+	m_keyboardOpen = FALSE;
+	m_keyboardEntry = nullptr;
+	m_keyboardStop = nullptr;
+	m_keyboardRow = 0;
+	m_keyboardCol = 0;
+	m_keyboardNumeric = FALSE;
+	m_keyboardCaps = FALSE;
+	m_keyboardFeedbackUntilMs = 0;
+	m_keyboardMatchChat = FALSE;
+	m_matchChatPendingUntilMs = 0;
 	m_settingsBackup.setDefaults();
 	m_dualActive[0] = m_dualActive[1] = FALSE;
 	m_dualSlot[0] = m_dualSlot[1] = -1;
@@ -388,6 +403,12 @@ GameController::~GameController()
 				TheDisplayStringManager->freeDisplayString(m_wheelLines[i]);
 			m_wheelLines[i] = nullptr;
 		}
+		for (Int i = 0; i < NUM_KEYBOARD_LINES; ++i)
+		{
+			if (m_keyboardLines[i])
+				TheDisplayStringManager->freeDisplayString(m_keyboardLines[i]);
+			m_keyboardLines[i] = nullptr;
+		}
 	}
 
 	delete m_device;
@@ -401,6 +422,9 @@ void GameController::init()
 {
 	loadSettings();
 	loadTestInput();
+#if CONTROLLERMOD_ENABLE_TEST_INPUT
+	beginTestState();
+#endif
 
 	m_device = createXInputControllerDevice();
 	if (m_device && !m_device->init())
@@ -651,6 +675,9 @@ Bool GameController::isBattlefieldContext() const
 		return FALSE;
 	if (TheInGameUI->isQuitMenuVisible())
 		return FALSE;
+	// A multiplayer match's chat box and "waiting for players" screen are used like menus.
+	if (isMatchChatOpen() || isDisconnectScreenOpen())
+		return FALSE;
 	return TRUE;
 }
 
@@ -718,8 +745,16 @@ Bool GameController::mouseActedThisFrame()
 	as "ms:BUTTON+BUTTON;ms:BUTTON", timed from the first battlefield frame. Each press is held for
 	150 ms. LSN, LSNE, LSE ... LSNW push the left stick fully in that compass direction; RSN ... RSNW
 	the right stick; LT pulls the left trigger fully; DISC makes the pad read as unplugged and SWAP
-	as another pad in another slot. A step can hold for longer: "ms-ms:BUTTON"
-	(from-to). A leading "shell;" times the steps from the first frame instead, for the menus.
+	as another pad in another slot; @Name clicks the menu gadget whose window name ends with Name
+	(as soon as it is on screen; for multiplayer tests); LOOK:Name|Name centres the camera on the
+	player's oldest object whose type name contains one of the Names (so a scripted A press can pick
+	a worker or a building wherever the map put it); AIM:Name|Name pushes the open wheel's stick
+	towards the slice with that name for as long as the step lasts; SNAP:label appends what the
+	controller sees to controllermod_snaps.txt (see GameControllerTestState.cpp). A step can hold
+	for longer: "ms-ms:BUTTON"
+	(from-to). A leading "shell;" times the steps from the first frame instead, for the menus; a
+	later "battle;" marker times the steps after it from the first battlefield frame again, so menu
+	steps and battle steps can share one script whatever the loading takes.
 	When the timer starts, controllermod_test_start.txt is written to the working folder
 	so a test script can line up its screenshots. Without the variable this does nothing, and a
 	build configured with CONTROLLERMOD_TEST_INPUT=OFF (any build for players) ignores it. */
@@ -728,6 +763,7 @@ void GameController::loadTestInput()
 {
 	m_testSteps.clear();
 	m_testStartMs = 0;
+	m_testBattleStartMs = 0;
 #if CONTROLLERMOD_ENABLE_TEST_INPUT
 	const char *spec = getenv("CONTROLLERMOD_TEST_INPUT");
 	if (!spec || !*spec)
@@ -749,9 +785,17 @@ void GameController::loadTestInput()
 	};
 
 	const char *p = spec;
+	Bool fromBattle = FALSE;
 	while (*p)
 	{
+		if (strncmp(p, "battle;", 7) == 0)
+		{
+			fromBattle = TRUE;
+			p += 7;
+			continue;
+		}
 		TestStep step;
+		step.fromBattle = fromBattle && m_testFromStart;
 		step.atMs = (UnsignedInt)strtoul(p, (char **)&p, 10);
 		step.untilMs = step.atMs + 150;
 		if (*p == '-')
@@ -767,15 +811,30 @@ void GameController::loadTestInput()
 		step.holdLT = FALSE;
 		step.disconnect = FALSE;
 		step.swapSlot = FALSE;
+		step.clickName[0] = 0;
+		step.clickFired = FALSE;
+		step.lookName[0] = 0;
+		step.lookFired = FALSE;
+		step.aimName[0] = 0;
+		step.snapLabel[0] = 0;
+		step.snapFired = FALSE;
 		if (*p == ':')
 			++p;
 		while (*p && *p != ';')
 		{
-			char token[16];
+			char token[48];
 			Int n = 0;
-			while (*p && *p != ';' && *p != '+' && n < 15)
+			while (*p && *p != ';' && *p != '+' && n < 47)
 				token[n++] = *p++;
 			token[n] = 0;
+			if (token[0] == '@')
+				strcpy(step.clickName, token + 1);
+			if (strncmp(token, "LOOK:", 5) == 0)
+				strcpy(step.lookName, token + 5);
+			if (strncmp(token, "AIM:", 4) == 0)
+				strcpy(step.aimName, token + 4);
+			if (strncmp(token, "SNAP:", 5) == 0)
+				strcpy(step.snapLabel, token + 5);
 			if (strcmp(token, "LT") == 0)
 				step.holdLT = TRUE;
 			if (strcmp(token, "DISC") == 0)
@@ -809,11 +868,62 @@ void GameController::loadTestInput()
 		}
 		if (*p == ';')
 			++p;
-		if (step.buttons || step.hasStick || step.hasRight || step.holdLT || step.disconnect || step.swapSlot)
+		if (step.buttons || step.hasStick || step.hasRight || step.holdLT || step.disconnect || step.swapSlot || step.clickName[0] || step.lookName[0]
+			|| step.aimName[0] || step.snapLabel[0])
 			m_testSteps.push_back(step);
 	}
 #endif
 }
+
+#if CONTROLLERMOD_ENABLE_TEST_INPUT
+namespace
+{
+	struct TestLookSearch
+	{
+		char names[48];   ///< lower case, alternatives separated by '|'
+		Object *found;
+	};
+
+	void findTestLookObject(Object *obj, void *userData)
+	{
+		TestLookSearch *search = (TestLookSearch *)userData;
+		if (!obj || obj->isEffectivelyDead() || !obj->getTemplate())
+			return;
+		if (search->found && search->found->getID() < obj->getID())
+			return;
+		char type[128];
+		strlcpy(type, obj->getTemplate()->getName().str(), sizeof(type));
+		for (char *c = type; *c; ++c)
+			*c = (char)tolower(*c);
+		char names[48];
+		strlcpy(names, search->names, sizeof(names));
+		for (char *name = strtok(names, "|"); name; name = strtok(nullptr, "|"))
+		{
+			if (strstr(type, name))
+			{
+				search->found = obj;
+				return;
+			}
+		}
+	}
+}
+
+/// Automated testing only: LOOK:Name centres the camera on the player's oldest object of that type.
+static void testLookAt(const char *names)
+{
+	Player *player = ThePlayerList ? ThePlayerList->getLocalPlayer() : nullptr;
+	if (!player || !TheTacticalView)
+		return;
+	TestLookSearch search;
+	strlcpy(search.names, names, sizeof(search.names));
+	for (char *c = search.names; *c; ++c)
+		*c = (char)tolower(*c);
+	search.found = nullptr;
+	player->iterateObjects(findTestLookObject, &search);
+	if (search.found)
+		TheTacticalView->userLookAt(search.found->getPosition());
+}
+#endif
 
 /// Automated testing only: DISC and SWAP steps change what the device reported, before the game
 /// looks at the connection (the timer is started by applyTestInput).
@@ -821,16 +931,26 @@ void GameController::applyTestConnection(ControllerState *state, Int *slot)
 {
 	if (m_testSteps.empty() || m_testStartMs == 0 || !state->connected)
 		return;
-	const UnsignedInt t = timeGetTime() - m_testStartMs;
+	const UnsignedInt now = timeGetTime();
 	for (size_t i = 0; i < m_testSteps.size(); ++i)
 	{
-		if (t < m_testSteps[i].atMs || t >= m_testSteps[i].untilMs)
+		if (!isTestStepActive(m_testSteps[i], now))
 			continue;
 		if (m_testSteps[i].disconnect)
 			state->clear();
 		if (m_testSteps[i].swapSlot)
 			*slot += 1;
 	}
+}
+
+/// Automated testing only: whether a step is being held now (on its own clock, see loadTestInput).
+Bool GameController::isTestStepActive(const TestStep &step, UnsignedInt nowMs) const
+{
+	const UnsignedInt start = step.fromBattle ? m_testBattleStartMs : m_testStartMs;
+	if (start == 0)
+		return FALSE;
+	const UnsignedInt t = nowMs - start;
+	return t >= step.atMs && t < step.untilMs;
 }
 
 void GameController::applyTestInput(ControllerState *state, Bool inBattle)
@@ -850,10 +970,11 @@ void GameController::applyTestInput(ControllerState *state, Bool inBattle)
 			fclose(f);
 		}
 	}
-	const UnsignedInt t = now - m_testStartMs;
+	if (inBattle && m_testBattleStartMs == 0)
+		m_testBattleStartMs = now;
 	for (size_t i = 0; i < m_testSteps.size(); ++i)
 	{
-		if (t >= m_testSteps[i].atMs && t < m_testSteps[i].untilMs)
+		if (isTestStepActive(m_testSteps[i], now))
 		{
 			state->buttons |= m_testSteps[i].buttons;
 			if (m_testSteps[i].hasStick)
@@ -868,6 +989,39 @@ void GameController::applyTestInput(ControllerState *state, Bool inBattle)
 			}
 			if (m_testSteps[i].holdLT)
 				state->leftTrigger = 1.0f;
+			if (m_testSteps[i].clickName[0] && !m_testSteps[i].clickFired)
+			{
+				m_testSteps[i].clickFired = TRUE;
+				m_testPendingClick = m_testSteps[i].clickName;
+			}
+#if CONTROLLERMOD_ENABLE_TEST_INPUT
+			if (m_testSteps[i].lookName[0] && !m_testSteps[i].lookFired && inBattle)
+			{
+				m_testSteps[i].lookFired = TRUE;
+				testLookAt(m_testSteps[i].lookName);
+			}
+			Int aimSide = 0;
+			Real aimDegrees = 0.0f;
+			if (m_testSteps[i].aimName[0] && testAimAt(m_testSteps[i].aimName, &aimSide, &aimDegrees))
+			{
+				const Real a = aimDegrees * PI / 180.0f;
+				if (aimSide == 0)
+				{
+					state->leftX = (Real)sin((double)a);
+					state->leftY = (Real)cos((double)a);
+				}
+				else
+				{
+					state->rightX = (Real)sin((double)a);
+					state->rightY = (Real)cos((double)a);
+				}
+			}
+			if (m_testSteps[i].snapLabel[0] && !m_testSteps[i].snapFired)
+			{
+				m_testSteps[i].snapFired = TRUE;
+				writeTestSnapshot(m_testSteps[i].snapLabel, now);
+			}
+#endif
 		}
 	}
 }
@@ -877,6 +1031,9 @@ void GameController::update()
 {
 	updateInput();
 	updateCursorLock();
+#if CONTROLLERMOD_ENABLE_TEST_INPUT
+	updateTestState(timeGetTime());
+#endif
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -1021,7 +1178,13 @@ void GameController::updateInput()
 	m_state.buttons = state.buttons;
 
 	// Never act while the game window is in the background.
-	const Bool appActive = TheGameEngine ? TheGameEngine->isActive() : TRUE;
+	Bool appActive = TheGameEngine ? TheGameEngine->isActive() : TRUE;
+#if CONTROLLERMOD_ENABLE_TEST_INPUT
+	// Automated testing only: scripted input drives a window that is not in front (two game
+	// windows side by side in a multiplayer test). Player builds never do this.
+	if (!m_testSteps.empty())
+		appActive = TRUE;
+#endif
 	updateEmergencyReset(timeGetTime(), appActive);
 	if (!appActive)
 	{
@@ -1135,7 +1298,14 @@ void GameController::updateInput()
 	// Everything that is not the battlefield is one of the game's own menus. In a match,
 	// Menu keeps its battlefield meaning (it closes the pause menu); outside one it jumps to Play.
 	if (!inBattle && !m_helpVisible)
-		updateMenuNavigation(pressed, state.buttons, state, nowMs);
+	{
+		if (isMatchChatOpen() && TheGameLogic->isInGame() && !TheGameLogic->isInShellGame())
+			updateMatchChat(pressed, menuDirection(state.buttons, state, nowMs), nowMs);
+		else
+			updateMenuNavigation(pressed, state.buttons, state, nowMs);
+	}
+	if (m_matchChatPendingUntilMs != 0 && (Int)(nowMs - m_matchChatPendingUntilMs) > 0)
+		m_matchChatPendingUntilMs = 0;   // the game did not open the chat box (an observer's allies chat)
 
 	if (inBattle)
 	{
@@ -1242,8 +1412,14 @@ void GameController::handleButtons(UnsignedInt pressed, UnsignedInt released, Un
 	if (!TheGameLogic || !TheGameLogic->isInGame() || TheGameLogic->isInShellGame() || TheGameLogic->isLoadingMap())
 		return;
 
+	// The chat box, the "waiting for players" screen and the on-screen keyboard keep every button,
+	// Menu included (Start is the keyboard's Done).
+	if (m_keyboardOpen || isMatchChatOpen() || isDisconnectScreenOpen())
+		return;
+
 	// Menu behaves exactly like Esc: the game's own handler toggles the in-game menu. It is checked
-	// first and is never gated, so the menu can always be closed again with the controller.
+	// before anything that depends on the battlefield, so the menu can always be closed again with
+	// the controller.
 	if (pressed & ControllerState::BUTTON_MENU)
 	{
 		m_helpVisible = FALSE;
@@ -1255,7 +1431,8 @@ void GameController::handleButtons(UnsignedInt pressed, UnsignedInt released, Un
 	if (!isBattlefieldContext())
 		return;
 
-	// While the help is open it owns the controller: only View or B (close) do anything.
+	// While the help is open it owns the controller: View or B close it, Y opens the controller
+	// settings, and in a multiplayer match A and X open the chat (everyone, allies).
 	if (m_helpVisible)
 	{
 		if (pressed & (ControllerState::BUTTON_VIEW | ControllerState::BUTTON_B))
@@ -1266,6 +1443,15 @@ void GameController::handleButtons(UnsignedInt pressed, UnsignedInt released, Un
 		else if (pressed & ControllerState::BUTTON_Y)
 		{
 			openSettingsScreen();
+		}
+		else if (pressed & (ControllerState::BUTTON_A | ControllerState::BUTTON_X))
+		{
+			if (TheGameLogic->isInMultiplayerGame() && !TheGameLogic->isInReplayGame())
+			{
+				m_helpVisible = FALSE;
+				beginInputContext();
+				openMatchChat((pressed & ControllerState::BUTTON_X) != 0, nowMs);
+			}
 		}
 		return;
 	}
@@ -1849,6 +2035,7 @@ void GameController::drawHelp()
 		"Aiming a command or building: A/X confirm, LT slow, RT fast, RS rotates a building, B back",
 		"Menus: D-pad moves, A selects, B back, Start: Play Game, View: controller settings",
 		"Menu: game menu   View or B: close this help   Y: controller settings (buttons, camera, sticks, timing)",
+		"Multiplayer, with this help open: A: chat to everyone   X: chat to allies",
 		"Buttons lost? Hold both stick clicks for 3 s, or press Ctrl+Shift+F12, for the default buttons"
 	};
 	const Int count = (Int)(sizeof(helpLines) / sizeof(helpLines[0]));
@@ -1970,10 +2157,25 @@ void GameController::drawScreenOverlay()
 	}
 	drawSettingsMessage();
 
-	// The game's own menus: the focus frame and what the buttons do.
+	// The game's own menus: the focus frame and what the buttons do (or the on-screen keyboard).
 	if (!isBattlefieldContext())
 	{
-		drawMenuFocus();
+		if (m_keyboardOpen)
+		{
+			drawKeyboard();
+		}
+		else if (isMatchChatOpen() && TheGameLogic->isInGame() && !TheGameLogic->isInShellGame())
+		{
+			// The chat box opened with the Enter key: say how to type with the controller.
+			if (!m_menuLegend)
+				m_menuLegend = makeString();
+			drawText(m_menuLegend, toUnicode("A: type with the controller   B: close the chat"), 8,
+				(Int)TheDisplay->getHeight() - textLineHeight() - 4, GameMakeColor(255, 220, 120, 255));
+		}
+		else
+		{
+			drawMenuFocus();
+		}
 		return;
 	}
 

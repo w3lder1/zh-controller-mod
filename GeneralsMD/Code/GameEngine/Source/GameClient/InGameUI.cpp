@@ -2429,6 +2429,16 @@ void InGameUI::addMessageText( const UnicodeString& formattedMessage, const RGBC
 		color2 = rgbColor->getAsInt() | GameMakeColor( 0, 0, 0, 255 );
 	}
 
+#if CONTROLLERMOD_ENABLE_TEST_INPUT
+	// ControllerMod @test Multiplayer tests (debug-logging test builds only) check the messages each
+	// game copy showed, such as a chat line from the other player.
+	{
+		AsciiString logged;
+		logged.translate(formattedMessage);
+		DEBUG_LOG(("ZHC-MSG %s", logged.str()));
+	}
+#endif
+
 	// delete the message stuff at the last index
 	m_uiMessages[ MAX_UI_MESSAGES - 1 ].fullText.clear();
 	if( m_uiMessages[ MAX_UI_MESSAGES - 1 ].displayString )

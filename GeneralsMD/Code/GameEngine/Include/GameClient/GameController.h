@@ -293,11 +293,31 @@ private:
 	void activateMenuTarget(const std::vector<MenuTarget> &targets, Int focus);
 	void switchMenuTab(const std::vector<MenuTarget> &targets, Int step);
 	static Int findMenuTargetNamed(const std::vector<MenuTarget> &targets, const char *suffix);
+	static Int menuStartTarget(const std::vector<MenuTarget> &targets);
 	Bool menuMouseMoved();
 	Bool skipMovieWithPad(UnsignedInt pressed);
 	void rememberMenuFocus(GameWindow *layer, GameWindow *focus);
 	Int rememberedMenuFocus(GameWindow *layer, const std::vector<MenuTarget> &targets) const;
 	void drawMenuFocus();
+
+	// Windows of a multiplayer match that own the pad like a menu: the chat box and the "waiting
+	// for players" screen.
+	static Bool isMatchChatOpen();
+	static Bool isDisconnectScreenOpen();
+	static GameWindow *matchMenuRoot();
+
+	// On-screen keyboard for the menus' text boxes (GameControllerKeyboard.cpp): player name,
+	// Direct Connect address, lobby chat. It types into the box like a keyboard.
+	enum { NUM_KEYBOARD_LINES = 72 };
+	void openKeyboard(GameWindow *entry, GameWindow *stop);
+	void closeKeyboard(Bool keep);
+	void updateKeyboard(const std::vector<MenuTarget> &targets, UnsignedInt pressed, Int dir, UnsignedInt nowMs);
+	void drawKeyboard();
+	void keyboardType(WideChar ch);
+	void keyboardBackspace();
+	static GameWindow *editableComboEntry(GameWindow *combo);
+	void openMatchChat(Bool allies, UnsignedInt nowMs);
+	void updateMatchChat(UnsignedInt pressed, Int dir, UnsignedInt nowMs);
 
 	// Controller settings screen and button layout (GameControllerSettings.cpp)
 	enum { NUM_SETTINGS_LINES = 40 };
@@ -540,7 +560,7 @@ private:
 	Bool m_helpVisible;
 	GameFont *m_font;
 	Int m_fontSize;
-	enum { MAX_TEXT_LINES = 12 };
+	enum { MAX_TEXT_LINES = 13 };
 	DisplayString *m_lines[MAX_TEXT_LINES];
 	DisplayString *m_hoverString;
 	DisplayString *m_infoLines[3];
@@ -574,6 +594,22 @@ private:
 	std::vector< std::pair<GameWindow *, GameWindow *> > m_menuMemory;  ///< last focus per menu
 	DisplayString *m_menuLegend;
 
+	// On-screen keyboard. The windows are only compared with this frame's gadgets (like m_menuFocus).
+	Bool m_keyboardOpen;
+	GameWindow *m_keyboardEntry;           ///< the text box typed into
+	GameWindow *m_keyboardStop;            ///< the menu stop it belongs to (the box, or its drop-down)
+	UnicodeString m_keyboardOriginal;      ///< the text when it opened (B puts it back)
+	UnicodeString m_keyboardShown;         ///< the box's text, copied while the box is alive (for drawing)
+	Int m_keyboardRow;
+	Int m_keyboardCol;
+	Bool m_keyboardNumeric;                ///< number pad (addresses, number-only boxes)
+	Bool m_keyboardCaps;
+	UnicodeString m_keyboardFeedback;
+	UnsignedInt m_keyboardFeedbackUntilMs;
+	DisplayString *m_keyboardLines[NUM_KEYBOARD_LINES];
+	Bool m_keyboardMatchChat;              ///< typing into the match's chat box
+	UnsignedInt m_matchChatPendingUntilMs; ///< the pad asked for the chat box: type into it when it opens
+
 	// Settings screen and button layout
 	Bool m_settingsOpen;
 	Int m_settingsPage;
@@ -604,11 +640,30 @@ private:
 		Bool holdLT;           ///< left trigger fully pulled
 		Bool disconnect;       ///< DISC: the pad reads as unplugged
 		Bool swapSlot;         ///< SWAP: another pad (another slot) is the one read
+		char clickName[48];    ///< @Name: click the menu gadget whose name ends with Name (once)
+		Bool clickFired;
+		char lookName[48];     ///< LOOK:Name|Name: centre the camera on an own object of that type (once)
+		Bool lookFired;
+		char aimName[48];      ///< AIM:Name|Name: push the open wheel's stick towards that slice
+		char snapLabel[48];    ///< SNAP:label: append the test state to the snapshot file (once)
+		Bool snapFired;
+		Bool fromBattle;       ///< after a "battle;" marker: timed from the first battlefield frame
 	};
+	Bool isTestStepActive(const TestStep &step, UnsignedInt nowMs) const;
+	AsciiString m_testPendingClick;   ///< an @Name step waiting for its gadget to appear
 	void applyTestConnection(ControllerState *state, Int *slot);
 	std::vector<TestStep> m_testSteps;
 	UnsignedInt m_testStartMs;
+	UnsignedInt m_testBattleStartMs;   ///< first battlefield frame, for steps after "battle;" (0 = not yet)
 	Bool m_testFromStart;      ///< "shell;" prefix: timed from the first frame (menus), not the first battle frame
+	// Test state file and snapshots (GameControllerTestState.cpp)
+	Bool m_testStateEnabled;   ///< CONTROLLERMOD_TEST_STATE: controllermod_state.txt is rewritten twice a second
+	UnsignedInt m_testStateNextMs;
+	void beginTestState();
+	void updateTestState(UnsignedInt nowMs);
+	void writeTestState(FILE *f, const char *label, UnsignedInt nowMs) const;
+	void writeTestSnapshot(const char *label, UnsignedInt nowMs) const;
+	Bool testAimAt(const char *names, Int *side, Real *degrees) const;
 };
 
 extern GameController *TheGameController;

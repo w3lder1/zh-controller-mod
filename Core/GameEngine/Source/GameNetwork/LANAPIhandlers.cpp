@@ -39,6 +39,11 @@
 #include "GameNetwork/LANAPI.h"
 #include "GameNetwork/LANAPICallbacks.h"
 #include "GameClient/MapUtil.h"
+#if RTS_ZEROHOUR
+#include "GameNetwork/ControllerModLan.h"
+#else
+#define CONTROLLERMOD_LAN_VERSION_CHECK 0
+#endif
 
 void LANAPI::handleRequestLocations( LANMessage *msg, UnsignedInt senderIP )
 {
@@ -99,6 +104,30 @@ void LANAPI::handleRequestLocations( LANMessage *msg, UnsignedInt senderIP )
 	OnNameChange(player->getIP(), player->getName());
 }
 
+/// Automated tests only: a copy that behaves like normal Zero Hour checks no joiners.
+static Bool controllerModActsRetail()
+{
+#if RTS_ZEROHOUR
+	return ControllerModLan::testActRetail();
+#else
+	return FALSE;
+#endif
+}
+
+/// ControllerMod @feature Remember what a game announcement says about the Controller Mod.
+static void noteControllerModTag( LANGameInfo *game, const LANMessage *msg )
+{
+#if RTS_ZEROHOUR
+	UnsignedShort version = 0;
+	UnsignedInt print = 0;
+	const Int state = ControllerModLan::readOptionsTag(msg->GameInfo.options, ARRAY_SIZE(msg->GameInfo.options), &version, &print);
+	game->setControllerModTag(state, version, print);
+#else
+	(void)game;
+	(void)msg;
+#endif
+}
+
 void LANAPI::handleGameAnnounce( LANMessage *msg, UnsignedInt senderIP )
 {
 	if (senderIP == m_localIP)
@@ -125,6 +154,7 @@ void LANAPI::handleGameAnnounce( LANMessage *msg, UnsignedInt senderIP )
 			game->setGameInProgress(msg->GameInfo.inProgress);
 			game->setIsDirectConnect(msg->GameInfo.isDirectConnect);
 			game->setLastHeard(timeGetTime());
+			noteControllerModTag(game, msg);
 			if (!success)
 			{
 				// remove from list
@@ -148,6 +178,7 @@ void LANAPI::handleGameAnnounce( LANMessage *msg, UnsignedInt senderIP )
 		game->setGameInProgress(msg->GameInfo.inProgress);
 		game->setIsDirectConnect(msg->GameInfo.isDirectConnect);
 		game->setLastHeard(timeGetTime());
+		noteControllerModTag(game, msg);
 		if (!success)
 		{
 			// remove from list
@@ -287,9 +318,11 @@ void LANAPI::handleRequestJoin( LANMessage *msg, UnsignedInt senderIP )
 			if (TheGlobalData->m_netMinPlayers > 0) {
 #endif
 // TheSuperHackers @todo Enable CRC checks!
-#if !RTS_ZEROHOUR
-			if (msg->GameToJoin.iniCRC != TheGlobalData->m_iniCRC ||
-					msg->GameToJoin.exeCRC != TheGlobalData->m_exeCRC)
+// ControllerMod @feature Zero Hour checks as well: a joiner with another program or other gameplay
+// data would go out of sync during the match (see ControllerModLan.h).
+#if !RTS_ZEROHOUR || CONTROLLERMOD_LAN_VERSION_CHECK
+			if (!controllerModActsRetail() && (msg->GameToJoin.iniCRC != TheGlobalData->m_iniCRC ||
+					msg->GameToJoin.exeCRC != TheGlobalData->m_exeCRC))
 			{
 				DEBUG_LOG(("LANAPI::handleRequestJoin - join denied because of CRC mismatch. CRCs are them/us INI:%X/%X exe:%X/%X",
 					msg->GameToJoin.iniCRC, TheGlobalData->m_iniCRC,
@@ -436,6 +469,29 @@ void LANAPI::handleJoinAccept( LANMessage *msg, UnsignedInt senderIP )
 	{
 		if (m_pendingAction == ACT_JOIN) // Are we trying to join?
 		{
+#if RTS_ZEROHOUR
+			// ControllerMod @feature The host must be a Controller Mod host with the same program and
+			// gameplay data (its acceptance carries the tag, see ControllerModLan.h). Otherwise leave
+			// again at once: the match would go out of sync.
+			UnsignedShort version = 0;
+			UnsignedInt print = 0;
+			const Bool tagged = ControllerModLan::readTag((const UnsignedByte *)&msg->GameJoined + sizeof(msg->GameJoined), &version, &print);
+			const Bool checkTag = !ControllerModLan::testActRetail();
+			if (checkTag && (!tagged || print != ControllerModLan::fingerprint()))
+			{
+				LANMessage leave;
+				leave.messageType = LANMessage::MSG_REQUEST_GAME_LEAVE;
+				fillInLANMessage( &leave );
+				wcslcpy(leave.PlayerInfo.playerName, m_name.str(), ARRAY_SIZE(leave.PlayerInfo.playerName));
+				sendMessage(&leave, senderIP);
+				m_pendingAction = ACT_NONE;
+				m_expiration = 0;
+				m_directConnectRemoteIP = 0;   // the host's next announcement must not try again
+				DEBUG_LOG(("LANAPI::handleJoinAccept - left again: the host is not the same Controller Mod (tag %d)", (Int)tagged));
+				ControllerModLan::showJoinRefusal(tagged ? ControllerModLan::TAG_PRESENT : ControllerModLan::TAG_ABSENT, version, print);
+				return;
+			}
+#endif
 			m_currentGame = LookupGame(UnicodeString(msg->GameJoined.gameName));
 
 			if (!m_currentGame)

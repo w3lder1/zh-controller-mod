@@ -54,15 +54,39 @@ MENUS (main menu, skirmish setup, options, save/load, pause menu)
                           Up/Down to choose, A keep, B cancel
   Left / Right .......... on a slider (volume, game speed): change it
   LB / RB ............... tabs (Official / Unofficial maps)
-  Start ................. jump to Play Game
+  Start ................. jump to Play Game (Accept, when you joined a game)
   B ..................... back ("Are you sure?" boxes: No)
   View .................. controller settings
   A, B or Start ......... at start-up: skip the videos
   Menu (in a match) ..... pause menu
 
+TYPING (player name, chat, Direct Connect address)
+  A on a text box ....... opens the on-screen keyboard
+  Y on the Remote IP box  opens a number pad for the address
+  Stick / D-pad ......... move over the keys
+  A ..................... type the key       X ... delete
+  Y ..................... space              LB .. capitals
+  Start ................. done (like Enter: the chat line is sent)
+  B ..................... cancel (the old text comes back)
+
+MULTIPLAYER (LAN, or a VPN such as Hamachi) - EXPERIMENTAL, see README
+  Main menu: Multiplayer > Network. The games list is where the focus
+  starts: A picks a game, A again joins it. Create Game is Left, Down.
+  In the game setup: Start jumps to Accept / Play Game.
+  In the match:
+    View, then A ........ chat to everyone (the on-screen keyboard opens;
+                          Start sends, B cancels)
+    View, then X ........ chat to your allies
+    Menu ................ game menu; the match does not pause. Surrender
+                          is in it (Down from the top), then Left = Yes.
+  A player stops responding: the "waiting for players" screen comes up.
+    The D-pad moves; A on the button next to a player votes to drop them
+    (alone against one player, that drops them at once); the chat box
+    below types; Quit Game leaves the match.
+  Score screen: Start jumps to OK, A goes back to the lobby.
+
 BUTTONS MIXED UP?
   Hold both stick clicks for 3 seconds, or press Ctrl+Shift+F12:
   the default buttons come back.
 
-Typing a player name or a save-game name needs the keyboard.
 The mouse and keyboard keep working at any time.

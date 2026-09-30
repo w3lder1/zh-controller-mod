@@ -13,7 +13,7 @@ body:
     attributes:
       label: Controller mod version
       description: Shown in the game window's title, or in ZH Controller\VERSION.txt in your game folder.
-      placeholder: "1.1.0"
+      placeholder: "1.2.0"
     validations:
       required: true
   - type: dropdown
@@ -33,7 +33,18 @@ body:
       placeholder: "Xbox One, wired"
     validations:
       required: true
-  - type: textarea
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where did it happen?
+      options:
+        - Single player / skirmish
+        - Menus
+        - Multiplayer on a LAN
+        - Multiplayer over a VPN (Hamachi, Radmin, ...)
+        - Installing or uninstalling
+    validations:
+      required: true  - type: textarea
     id: what
     attributes:
       label: What happened, and what did you expect?

@@ -499,4 +499,30 @@ inline bool reticleShouldAnimate(bool animatedBefore, unsigned sinceLastAnimMs, 
 	return !animatedBefore || sinceLastAnimMs >= minGapMs;
 }
 
+/// On-screen keyboard: moving the highlight. Rows can have different numbers of keys (the last row
+/// has a few wide ones). Left/right wrap within the row; up/down wrap top to bottom and keep the
+/// highlight at about the same place across the row. dir: 0 up, 1 down, 2 left, 3 right.
+inline void keyboardMove(const int *rowLengths, int rowCount, int *row, int *col, int dir)
+{
+	if (rowCount <= 0 || *row < 0 || *row >= rowCount || rowLengths[*row] <= 0)
+	{
+		*row = 0;
+		*col = 0;
+		return;
+	}
+	const int length = rowLengths[*row];
+	if (dir == 2 || dir == 3)
+	{
+		*col = (*col + (dir == 3 ? 1 : length - 1)) % length;
+		return;
+	}
+	const int next = (*row + (dir == 1 ? 1 : rowCount - 1)) % rowCount;
+	const int nextLength = rowLengths[next] > 0 ? rowLengths[next] : 1;
+	int nextCol = (int)(((float)*col + 0.5f) * (float)nextLength / (float)length);
+	if (nextCol > nextLength - 1)
+		nextCol = nextLength - 1;
+	*row = next;
+	*col = nextCol;
+}
+
 } // namespace ControllerMath

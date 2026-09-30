@@ -700,6 +700,8 @@ set(GAMEENGINE_SRC
     Source/GameClient/Input/GameControllerReticle.cpp
     Source/GameClient/Input/GameControllerSettings.cpp
     Source/GameClient/Input/GameControllerSelection.cpp
+    Source/GameClient/Input/GameControllerKeyboard.cpp
+    Source/GameClient/Input/GameControllerTestState.cpp
     Source/GameClient/Input/XInputControllerDevice.cpp
 #    Source/GameClient/GameClientDispatch.cpp
 #    Source/GameClient/GameText.cpp

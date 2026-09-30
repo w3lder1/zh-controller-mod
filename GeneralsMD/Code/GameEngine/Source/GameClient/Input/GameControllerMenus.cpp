@@ -20,7 +20,8 @@
 // ControllerMod @feature The game's own menus with the controller.
 //
 // Everything that is not the battlefield (main menu, skirmish setup, options, save/load, the
-// pause menu, message boxes, the score screen) is a native GUI made of windows and gadgets. The
+// pause menu, message boxes, the score screen; in a multiplayer match the chat box and the
+// "waiting for players" screen) is a native GUI made of windows and gadgets. The
 // controller does not replace any of it. It keeps a focus on one of the gadgets the mouse could
 // click right now and hands the player's choice to that gadget the way the mouse or keyboard
 // would:
@@ -59,7 +60,9 @@
 #include "Common/NameKeyGenerator.h"
 #include "GameClient/Color.h"
 #include "GameClient/Display.h"
+#include "GameClient/DisconnectMenu.h"
 #include "GameClient/GameClient.h"
+#include "GameClient/GUICallbacks.h"
 #include "GameClient/Shell.h"
 #include "GameClient/DisplayString.h"
 #include "GameClient/Gadget.h"
@@ -234,8 +237,40 @@ void GameController::addMenuTargets(GameWindow *win, std::vector<MenuTarget> *ou
 		addMenuTargets(child, out);
 }
 
+/// The match's chat box is open (the Enter key's, or the pad's from the help).
+Bool GameController::isMatchChatOpen()
+{
+	return IsInGameChatActive();
+}
+
+/// The "waiting for players" screen of a multiplayer match (a player stopped responding).
+Bool GameController::isDisconnectScreenOpen()
+{
+	return TheDisconnectMenu && TheDisconnectMenu->isScreenVisible();
+}
+
+/// The top window of the match's chat box or "waiting for players" screen, while one is open.
+/// The rest of the match screen (the control bar) is never part of that menu.
+GameWindow *GameController::matchMenuRoot()
+{
+	if (!TheWindowManager || !TheNameKeyGenerator)
+		return nullptr;
+	const char *gadget = nullptr;
+	if (isDisconnectScreenOpen())
+		gadget = "DisconnectScreen.wnd:ButtonQuitGame";
+	else if (isMatchChatOpen())
+		gadget = "InGameChat.wnd:TextEntryChat";
+	if (!gadget)
+		return nullptr;
+	GameWindow *win = TheWindowManager->winGetWindowFromId(nullptr, TheNameKeyGenerator->nameToKey(gadget));
+	while (win && win->winGetParent())
+		win = win->winGetParent();
+	return win;
+}
+
 /// The gadgets the focus can be on now, and the window they belong to (the capture or modal
-/// window, or the top-most visible layer that has any).
+/// window, the match's chat box or "waiting for players" screen, or the top-most visible layer
+/// that has any).
 void GameController::collectMenuTargets(std::vector<MenuTarget> *out, GameWindow **layer) const
 {
 	out->clear();
@@ -246,6 +281,8 @@ void GameController::collectMenuTargets(std::vector<MenuTarget> *out, GameWindow
 	GameWindow *root = TheWindowManager->winGetCapture();
 	if (!root)
 		root = TheWindowManager->winGetModalWindow();
+	if (!root && TheGameLogic && TheGameLogic->isInGame() && !TheGameLogic->isInShellGame())
+		root = matchMenuRoot();
 	if (root)
 	{
 		if (!TheWindowManager->isHidden(root))
@@ -267,6 +304,10 @@ void GameController::collectMenuTargets(std::vector<MenuTarget> *out, GameWindow
 			if (required[pass] != WIN_STATUS_NONE && !BitIsSet(status, required[pass]))
 				continue;
 			if (BitIsSet(status, forbidden[pass]) || !BitIsSet(status, WIN_STATUS_ENABLED))
+				continue;
+			// The LAN lobby's game info panel (players and map of the selected game) only shows
+			// information; the lobby under it stays the menu.
+			if (TheNameKeyGenerator && strncmp(TheNameKeyGenerator->keyToName((NameKeyType)win->winGetWindowId()).str(), "GameInfoWindow.wnd", 18) == 0)
 				continue;
 			addMenuTargets(win, out);
 			if (!out->empty())
@@ -316,14 +357,25 @@ void GameController::dumpMenuTargets(const std::vector<MenuTarget> &targets, Gam
 
 static Bool isPictureList(GameWindow *list);
 
-/// Where a menu starts: its list (the maps, the save games), else the first gadget in reading
-/// order: the top row, then the left-most in it. Text boxes are passed over when there is
-/// anything else (the skirmish screen starts with the player name), and so is the medal list.
+/// A chat log (the LAN lobby's, the game setup's, the "waiting for players" screen's): only read,
+/// never the menu's main list.
+static Bool isChatLog(GameWindow *list)
+{
+	if (!list || !TheNameKeyGenerator)
+		return FALSE;
+	const AsciiString name = TheNameKeyGenerator->keyToName((NameKeyType)list->winGetWindowId());
+	return strstr(name.str(), "Chat") != nullptr || strstr(name.str(), "DisconnectScreen.wnd:ListboxTextDisplay") != nullptr;
+}
+
+/// Where a menu starts: its list (the maps, the save games, the LAN games), else the first gadget
+/// in reading order: the top row, then the left-most in it. Text boxes are passed over when there
+/// is anything else (the skirmish screen starts with the player name), and so are the medal list
+/// and chat logs (the LAN lobby's chat comes before its games list).
 Int GameController::firstMenuTarget(const std::vector<MenuTarget> &targets)
 {
 	for (Int i = 0; i < (Int)targets.size(); ++i)
 	{
-		if (BitIsSet(targets[i].style, GWS_SCROLL_LISTBOX) && !isPictureList(targets[i].window))
+		if (BitIsSet(targets[i].style, GWS_SCROLL_LISTBOX) && !isPictureList(targets[i].window) && !isChatLog(targets[i].window))
 			return i;
 	}
 	Int best = -1;
@@ -691,6 +743,12 @@ void GameController::activateMenuTarget(const std::vector<MenuTarget> &targets, 
 	}
 	if (BitIsSet(target.style, GWS_HORZ_SLIDER))
 		return;
+	// A text box (player name, chat): the on-screen keyboard types into it.
+	if (BitIsSet(target.style, GWS_ENTRY_FIELD))
+	{
+		openKeyboard(target.window, target.window);
+		return;
+	}
 	if (BitIsSet(target.style, GWS_COMBO_BOX))
 	{
 		// Open the list with a click, like the mouse. Remember the choice, so B can put it back.
@@ -817,6 +875,13 @@ Bool GameController::menuMouseMoved()
 			moved = TRUE;
 		m_menuMouseEvents = events;
 	}
+#if CONTROLLERMOD_ENABLE_TEST_INPUT
+	// Automated testing only: in scripted runs the mouse is not the player's. With two game copies
+	// on one PC, each copy moves the one real cursor onto its focused button, and the other copy
+	// would take that for the player picking up the mouse.
+	if (!m_testSteps.empty())
+		moved = FALSE;
+#endif
 	return moved;
 }
 
@@ -876,6 +941,28 @@ void GameController::updateMenuNavigation(UnsignedInt pressed, UnsignedInt held,
 	std::vector<MenuTarget> targets;
 	GameWindow *layer = nullptr;
 	collectMenuTargets(&targets, &layer);
+
+#if CONTROLLERMOD_ENABLE_TEST_INPUT
+	// Automated testing only: an @Name step uses that gadget like A (a button is clicked; a list's
+	// first A picks its first entry, the next one takes it) as soon as it is on screen.
+	if (!m_testPendingClick.isEmpty())
+	{
+		const Int named = findMenuTargetNamed(targets, m_testPendingClick.str());
+		if (named >= 0)
+		{
+			activateMenuTarget(targets, named);
+			m_testPendingClick.clear();
+			return;
+		}
+	}
+#endif
+
+	// The on-screen keyboard owns the pad while it is open.
+	if (m_keyboardOpen)
+	{
+		updateKeyboard(targets, pressed, dir, nowMs);
+		return;
+	}
 
 	// A save/load step appeared with a Confirm button (the save name box, "overwrite?"): the focus
 	// goes there, so NEW GAME, A, A saves. Only stops that just appeared are looked at.
@@ -938,7 +1025,14 @@ void GameController::updateMenuNavigation(UnsignedInt pressed, UnsignedInt held,
 		// press only shows the focus (B still goes back).
 		m_menuFocusShown = TRUE;
 		focus = -1;
-		if (TheMouse)
+		Bool useCursor = TheMouse != nullptr;
+#if CONTROLLERMOD_ENABLE_TEST_INPUT
+		// Automated testing only: scripted runs ignore the real cursor, which is wherever it was left
+		// on the desktop (possibly over Exit in a background test window).
+		if (!m_testSteps.empty())
+			useCursor = FALSE;
+#endif
+		if (useCursor)
 		{
 			const ICoord2D mouse = TheMouse->getMouseStatus()->pos;
 			for (Int i = 0; i < (Int)targets.size(); ++i)
@@ -954,6 +1048,9 @@ void GameController::updateMenuNavigation(UnsignedInt pressed, UnsignedInt held,
 			focus = menuCancelTarget(targets);
 		if (focus < 0)
 			focus = firstMenuTarget(targets);
+		// Start jumps to Play Game (Accept) on this first press as well: it only moves the focus.
+		if ((pressed & ControllerState::BUTTON_MENU) && menuStartTarget(targets) >= 0)
+			focus = menuStartTarget(targets);
 		setMenuFocus(targets[focus]);
 		noteMenuFocus(targets[focus]);
 		rememberMenuFocus(layer, targets[focus].window);
@@ -1104,17 +1201,26 @@ void GameController::updateMenuNavigation(UnsignedInt pressed, UnsignedInt held,
 	if ((pressed & ControllerState::BUTTON_MENU) && TheGameLogic &&
 		(!TheGameLogic->isInGame() || TheGameLogic->isInShellGame()))
 	{
-		Int start = findMenuTargetNamed(targets, ":ButtonStart");
-		if (start < 0)
-			start = findMenuTargetNamed(targets, ":ButtonOK");
-		if (start < 0)
-			start = findMenuTargetNamed(targets, ":ButtonAccept");
+		const Int start = menuStartTarget(targets);
 		if (start >= 0)
 		{
 			focus = start;
 			setMenuFocus(targets[focus]);
 			noteMenuFocus(targets[focus]);
 			rememberMenuFocus(layer, targets[focus].window);
+		}
+	}
+
+	// Y on a drop-down that can also be typed into (the Direct Connect address): the on-screen
+	// keyboard types into its box.
+	if ((pressed & ControllerState::BUTTON_Y) && focus >= 0 && focus < (Int)targets.size() &&
+		BitIsSet(targets[focus].style, GWS_COMBO_BOX))
+	{
+		GameWindow *edit = editableComboEntry(targets[focus].window);
+		if (edit)
+		{
+			openKeyboard(edit, targets[focus].window);
+			return;
 		}
 	}
 
@@ -1133,11 +1239,30 @@ void GameController::updateMenuNavigation(UnsignedInt pressed, UnsignedInt held,
 	}
 }
 
+/// What Start jumps to outside a match: the button that starts it (Play Game; Accept for a player
+/// who joined), or the OK of a screen without one. -1 when there is none.
+Int GameController::menuStartTarget(const std::vector<MenuTarget> &targets)
+{
+	if (!TheGameLogic || (TheGameLogic->isInGame() && !TheGameLogic->isInShellGame()))
+		return -1;
+	Int start = findMenuTargetNamed(targets, ":ButtonStart");
+	if (start < 0)
+		start = findMenuTargetNamed(targets, ":ButtonOK");
+	if (start < 0)
+		start = findMenuTargetNamed(targets, ":ButtonOk");   // the score screen after a match
+	if (start < 0)
+		start = findMenuTargetNamed(targets, ":ButtonAccept");
+	return start;
+}
+
 /// B: a message box's No / Cancel / OK; else the screen's own Cancel or Back button (what its Esc
-/// key would press, where the Esc key reaches it); otherwise Esc.
+/// key would press, where the Esc key reaches it); otherwise Esc. The "waiting for players" screen
+/// has no way back (it goes when the players respond, or by Quit Game): B does nothing there.
 void GameController::menuBack(const std::vector<MenuTarget> &targets)
 {
 	Int back = menuCancelTarget(targets);
+	if (back < 0 && isDisconnectScreenOpen())
+		return;
 	if (back < 0)
 		back = findMenuTargetNamed(targets, "Cancel");
 	if (back < 0)
@@ -1172,13 +1297,13 @@ void GameController::drawMenuFocus()
 	else if (BitIsSet(m_menuFocusStyle, GWS_HORZ_SLIDER))
 		text = "Left/Right: adjust   Up/Down: move   B: back";
 	else if (BitIsSet(m_menuFocusStyle, GWS_COMBO_BOX))
-		text = "A: open the list   D-pad: move   B: back";
+		text = editableComboEntry(m_menuFocus) ? "A: open the list   Y: type   D-pad: move   B: back" : "A: open the list   D-pad: move   B: back";
 	else if (m_menuFocusPicture)
 		text = "A: look at the medals   D-pad: move   B: back";
 	else if (BitIsSet(m_menuFocusStyle, GWS_SCROLL_LISTBOX))
 		text = m_menuHasTabs ? "Up/Down: choose   A: take this one   LB/RB: tabs   B: back" : "Up/Down: choose   A: take this one   B: back";
 	else if (BitIsSet(m_menuFocusStyle, GWS_ENTRY_FIELD))
-		text = "A: type with the keyboard   D-pad: move   B: back";
+		text = "A: type   D-pad: move   B: back";
 	else
 		text = "A: select   D-pad / left stick: move   B: back";
 

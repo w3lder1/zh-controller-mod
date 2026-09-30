@@ -103,6 +103,48 @@ Your save games and options are kept. To also delete the controller settings:
 Uninstall.cmd -RemoveControllerSettings
 
 
+MULTIPLAYER (LAN AND VPN) - EXPERIMENTAL, PROBABLY DOESN'T WORK YET
+-------------------------------------------------------------------
+Multiplayer is included so people can try it, but it has only been tested
+with two copies of the game on one PC, never between two real PCs. Expect it
+not to work (games that don't connect, or that go out of sync). If you try
+it, please tell us what happened (see REPORTING PROBLEMS below): that is
+exactly the feedback it needs. Single player and skirmish are the parts that
+are ready.
+
+The idea: Controller Mod players play each other on a LAN, or over the
+internet with a VPN such as Hamachi or Radmin VPN. Everyone needs:
+- the same Controller Mod version (the same download),
+- Zero Hour 1.04 without other mods. GenPatcher is fine: it does not change
+  anything that matters here.
+You can't play with players of the normal game, or of another Controller Mod
+version: those games would go out of sync. The LAN list shows them greyed out,
+with what they are ("normal ZH", "mod 1.1.0", "other files"), and joining one
+tells you why it can't be joined.
+
+Over a VPN: in Options set both "LAN IP" and "Online IP" to your VPN address
+(Hamachi starts with 25., Radmin with 26.). Host with Multiplayer > Network >
+Create Game. If your friend doesn't see the game in the list, use Direct
+Connect: the host clicks Create Game, the other player types the host's VPN
+address as Remote IP and clicks Join Game. Allow the game in Windows Firewall
+(also for public networks) when Windows asks.
+
+A multiplayer game is meant to work with the controller from the lobby to the
+score screen, including chat (on-screen keyboard) and the "waiting for
+players" screen. See CONTROLS.txt, "Multiplayer".
+
+
+FEEDBACK AND REPORTING PROBLEMS
+-------------------------------
+This is an early version and feedback is very welcome: what felt good, what
+felt wrong, what was hard to find, and anything that broke. Post it here:
+  https://github.com/w3lder1/zh-controller-mod/issues
+("Feedback" for impressions, "Bug report" for something that went wrong).
+Please say which version (VERSION.txt, or the game window's title), which copy
+of Zero Hour (EA App, Steam, CD) and which controller. For multiplayer tries:
+LAN or VPN, how far you got, and what happened.
+
+
 YOUR SAVES AND SETTINGS
 -----------------------
 The controller version uses the same user folder as your normal game:

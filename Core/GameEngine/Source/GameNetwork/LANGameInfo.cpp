@@ -42,6 +42,9 @@
 #include "GameNetwork/LANusers.h"
 #include "GameNetwork/LANmenus.h"
 */
+#if RTS_ZEROHOUR
+#include "GameNetwork/ControllerModLan.h"
+#endif
 
 // Singleton ------------------------------------------
 
@@ -91,6 +94,11 @@ LANGameInfo::LANGameInfo()
 	m_lastHeard = 0;
 	m_next = nullptr;
 	m_isDirectConnect = false;
+#if RTS_ZEROHOUR
+	m_modTagState = 0;
+	m_modVersion = 0;
+	m_modPrint = 0;
+#endif
 	//
 	for (Int i = 0; i< MAX_SLOTS; ++i)
 		setSlotPointer(i, &m_LANSlot[i]);
@@ -224,7 +232,28 @@ void LANDisplayGameList( GameWindow *gameListbox, LANGameInfo *gameList )
 			{
 				txtGName.concat(L"]");
 			}
-			Int addedIndex = GadgetListBoxAddEntryText(gameListbox, txtGName, (gameList->isGameInProgress())?gameInProgressColor:gameColor, -1, -1);
+			Color color = (gameList->isGameInProgress())?gameInProgressColor:gameColor;
+#if RTS_ZEROHOUR
+			// ControllerMod @feature Games a Controller Mod player can't join are greyed out and say
+			// what they are.
+			const Int tag = gameList->getControllerModTagState();
+			if (tag == ControllerModLan::TAG_ABSENT)
+			{
+				txtGName.concat(L" (normal ZH)");
+				color = GameMakeColor(140,140,140,255);
+			}
+			else if (tag == ControllerModLan::TAG_PRESENT && gameList->getControllerModPrint() != ControllerModLan::fingerprint())
+			{
+				UnicodeString what;
+				if (gameList->getControllerModVersion() != ControllerModLan::packedVersion())
+					what.format(L" (mod %ls)", ControllerModLan::versionText(gameList->getControllerModVersion()).str());
+				else
+					what.format(L" (other files)");
+				txtGName.concat(what);
+				color = GameMakeColor(140,140,140,255);
+			}
+#endif
+			Int addedIndex = GadgetListBoxAddEntryText(gameListbox, txtGName, color, -1, -1);
 			GadgetListBoxSetItemData(gameListbox, (void *)gameList, addedIndex, 0 );
 
 			if (selectedPtr == gameList)

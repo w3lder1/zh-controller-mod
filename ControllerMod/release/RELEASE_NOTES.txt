@@ -1,6 +1,26 @@
 ZERO HOUR CONTROLLER MOD - RELEASE NOTES
 ========================================
 
+VERSION 1.2.0
+-------------
+- Multiplayer (LAN and VPN) between Controller Mod players: EXPERIMENTAL and
+  probably not working yet. It was only tested with two copies of the game on
+  one PC, never between two real PCs. It is in this version so people can try
+  it and report what happens: see README, "Multiplayer". Games of the normal
+  game and of other Controller Mod versions are greyed out in the LAN list and
+  can't be joined (they would go out of sync); a Controller Mod host refuses
+  such players too.
+- On-screen keyboard: A on a text box (player name, chat) opens it; Y on the
+  Direct Connect "Remote IP" box opens a number pad. See CONTROLS.
+- Multiplayer lobby with the controller: the LAN lobby starts on the games
+  list (A picks, A joins); selecting a game no longer traps the focus in its
+  info panel; Start jumps to Accept / Play Game even when the focus frame was
+  hidden.
+- Multiplayer matches with the controller: chat from the help (View, then A
+  for everyone or X for allies) with the on-screen keyboard; the "waiting
+  for players" screen (vote to drop a player, chat, Quit Game); Start jumps
+  to OK on the score screen. See CONTROLS, "Multiplayer".
+
 VERSION 1.1.0
 -------------
 First public release. Everything below (1.0.0 - 1.0.5) was tested

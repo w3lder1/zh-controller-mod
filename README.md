@@ -4,6 +4,11 @@ Play **Command & Conquer Generals: Zero Hour** with an Xbox controller, Halo War
 the middle of the screen, paint selection, radial command wheels, and the game's own menus with the
 D-pad.
 
+> **Early version, feedback wanted.** Single player and skirmish are ready to play. **Multiplayer is
+> included but experimental and probably doesn't work yet**: it has only been tested with two copies
+> of the game on one PC. Tell us how it went, good or bad, on the [issues page](../../issues/new/choose)
+> ("Feedback" or "Bug report").
+
 > **Credit where it's due.** This is a small addition to other people's work. The game is
 > **Electronic Arts'** Command & Conquer Generals: Zero Hour, and its source code was released by EA
 > under the GPL. The engine this mod is built on is the **Community Patch** (GeneralsGameCode) by
@@ -52,6 +57,10 @@ and the Microsoft Visual C++ 2015-2022 Redistributable (x86), which most PCs alr
   powers and control groups.
 - **Menus:** the game's own menus with the D-pad and A/B, including skirmish setup, map choice,
   options, save/load and the pause menu; skip the intro videos with A or Start.
+- **Typing:** an on-screen keyboard for the player name, chat and the Direct Connect address.
+- **Multiplayer (experimental):** LAN or VPN (Hamachi, Radmin) games between Controller Mod players,
+  from the lobby to the score screen by controller, including chat. Probably doesn't work yet; see
+  [Limits](#limits).
 - **Settings screen:** press View in a menu (or View, then Y in a match): speeds, dead zones, button
   layout (with an emergency reset: hold both stick clicks), reticle style.
 - Mouse and keyboard keep working at any time.
@@ -60,8 +69,13 @@ Full controls: `ControllerMod/release/CONTROLS.txt` (also installed with the mod
 
 ## Limits
 
-- **Single player and skirmish only.** Multiplayer is not supported: this program is not compatible
-  with other players' games, online or on LAN.
+- **Multiplayer is experimental and probably doesn't work yet.** It has only been tested with two
+  copies of the game on one PC, never between two real PCs. It only plays other players with the
+  **same Controller Mod version** (normal Zero Hour and other versions are greyed out in the LAN list),
+  because this program doesn't compute exactly like the normal game and the match would go out of
+  sync. There is no online play. For a VPN, set both "LAN IP" and "Online IP" in Options to your VPN
+  address; details in the README installed with the mod. If you try it, please
+  [report](../../issues/new/choose) how far you got.
 - Tested with the EA App version of Zero Hour 1.04 and a wired Xbox One controller. The Steam and
   other versions should work (Setup lets you browse to the game folder) but are less tested.
 - GenTool is skipped by this program (your normal game keeps it). Other mods and total conversions
@@ -72,8 +86,9 @@ Full controls: `ControllerMod/release/CONTROLS.txt` (also installed with the mod
 
 The controller code is in `GeneralsMD/Code/GameEngine/Source/GameClient/Input/`
 (`GameController*.cpp`, `XInputControllerDevice.cpp`), `GeneralsMD/Code/GameEngine/Include/GameClient/`
-(`GameController.h`, `ControllerMath.h`), and `Core/GameEngine/Include/Common/ControllerModVersion.h`,
-plus small hooks in about 17 engine files. Everything else is TheSuperHackers' GeneralsGameCode
+(`GameController.h`, `ControllerMath.h`), `Core/GameEngine/Include/Common/ControllerModVersion.h` and
+`Core/GameEngine/Include/GameNetwork/ControllerModLan.h`, plus small, marked hooks in about 20 engine
+files. Everything else is TheSuperHackers' GeneralsGameCode
 (their original README is in [`UPSTREAM_README.md`](UPSTREAM_README.md)). The installer, build
 scripts and tests are in [`ControllerMod/`](ControllerMod/).
 
