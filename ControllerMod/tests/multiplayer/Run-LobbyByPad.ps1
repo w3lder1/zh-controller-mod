@@ -13,10 +13,12 @@
 #>
 param(
     [Parameter(Mandatory = $true)][string]$OutDir,
-    [string]$Game = (Join-Path $PSScriptRoot '..\..\..\..\TestGame\ZeroHour'),
-    [string]$Build = (Join-Path $PSScriptRoot '..\..\..\build\mptest\GeneralsMD\Release\generalszh.exe')
+    [string]$Game = '',
+    [string]$Build = ''
 )
 $ErrorActionPreference = 'Stop'
+if (-not $Game) { $Game = Join-Path $PSScriptRoot '..\..\..\..\TestGame\ZeroHour' }   # (a default here: $PSScriptRoot is empty in parameter defaults under -File)
+if (-not $Build) { $Build = Join-Path $PSScriptRoot '..\..\..\build\mptest\GeneralsMD\Release\generalszh.exe' }   # (a default here: $PSScriptRoot is empty in parameter defaults under -File)
 . (Join-Path $PSScriptRoot 'MpTestSettings.ps1')
 if (Get-Process -Name 'generalszh*', 'generals' -ErrorAction SilentlyContinue) { throw 'Zero Hour is running. Close it first.' }
 New-Item -ItemType Directory -Force $OutDir | Out-Null
@@ -41,7 +43,7 @@ Backup-MpSettings -Backup $backup
 try {
     Set-MpTwoCopySettings -Faction 2
     Clear-MpGameFiles -Game $Game
-    & (Join-Path $PSScriptRoot 'Run-TwoInstances.ps1') -Game $Game -StepsA $stepsA -StepsB $stepsB -ShotsMs 28000, 31500, 35000, 42000, 62000 `
+    & (Join-Path $PSScriptRoot 'Run-TwoInstances.ps1') -Game $Game -StepsA $stepsA -StepsB $stepsB -ShotsMs 28000, 31500, 35000, 42000, 62000, 68000 `
         -OutDir (Join-Path $OutDir 'shots') | Out-File -FilePath (Join-Path $OutDir 'run.txt') -Encoding ascii
     Start-Sleep -Seconds 2
     foreach ($f in 'controllermod_snaps.txt', 'controllermod_snaps_Instance02.txt', 'DebugLogFile.txt', 'DebugLogFile_Instance02.txt') {
@@ -50,7 +52,7 @@ try {
     }
 }
 finally {
-    foreach ($p in Get-Process -Name 'generalszh_mp*' -ErrorAction SilentlyContinue) { Stop-Process -Id $p.Id -Force }
+    Stop-MpOwnedCopies -Dir $OutDir -Game $Game
     Start-Sleep -Seconds 1
     Restore-MpSettings -Backup $backup
     Clear-MpGameFiles -Game $Game
@@ -87,3 +89,4 @@ $summary.Insert(0, "Lobby by pad: $(if ($ok) { 'PASS' } else { 'FAIL' })")
 Set-Content -LiteralPath (Join-Path $OutDir 'summary.txt') -Value $summary -Encoding ascii
 $summary
 if (-not $ok) { exit 1 }
+exit 0

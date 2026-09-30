@@ -442,6 +442,7 @@ void GameController::closePanel()
 	m_panelOpen = FALSE;
 	m_repeatButton = 0;
 	m_groupClearPending = -1;
+	m_sellConfirmUntilMs = 0;   // a Sell question ends with the wheel
 	// Leaving the powers panel leaves the promotion window too, whoever opened it.
 	if (m_panelKind == PANEL_POWERS)
 		closeScienceWindow();
@@ -536,21 +537,30 @@ void GameController::activatePanelWindow(GameWindow *win)
 		return;
 	}
 
-	// Selling several objects at once is irreversible: ask for a second press first.
+	// Selling several objects at once is irreversible: ask for a second press first. The second
+	// press confirms only the same Sell for exactly the same objects: a selection changed in
+	// between (a keyboard group, the mouse) asks again.
 	const CommandButton *command = (const CommandButton *)GadgetButtonGetData(win);
 	const Int selected = TheInGameUI->getSelectCount();
 	if (command && command->getCommandType() == GUI_COMMAND_SELL && selected > 1)
 	{
 		const UnsignedInt now = timeGetTime();
-		if (m_sellConfirmUntilMs == 0 || (Int)(now - m_sellConfirmUntilMs) > 0)
+		std::vector<ObjectID> ids;
+		readSelectedIDs(&ids);
+		const Bool confirmed = m_sellConfirmUntilMs != 0 && (Int)(now - m_sellConfirmUntilMs) <= 0 &&
+			command == m_sellConfirmCommand && ids == m_sellConfirmIDs;
+		if (!confirmed)
 		{
 			m_sellConfirmUntilMs = now + SELL_CONFIRM_MS;
+			m_sellConfirmCommand = command;
+			m_sellConfirmIDs = ids;
 			UnicodeString text;
 			text.format(L"Sell all %d selected? Press A again to confirm", selected);
 			showFeedback(text);
 			return;
 		}
 		m_sellConfirmUntilMs = 0;
+		m_sellConfirmIDs.clear();
 	}
 
 	AudioEventRTS buttonClick;

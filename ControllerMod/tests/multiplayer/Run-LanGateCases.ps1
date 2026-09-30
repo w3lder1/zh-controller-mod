@@ -21,10 +21,12 @@
 param(
     [Parameter(Mandatory = $true)][string]$OutDir,
     [string[]]$Cases = @('same', 'build', 'version', 'hostcheck', 'retailhost', 'retailaccept'),
-    [string]$Game = (Join-Path $PSScriptRoot '..\..\..\..\TestGame\ZeroHour'),
-    [string]$Build = (Join-Path $PSScriptRoot '..\..\..\build\mptest\GeneralsMD\Release\generalszh.exe')
+    [string]$Game = '',
+    [string]$Build = ''
 )
 $ErrorActionPreference = 'Stop'
+if (-not $Game) { $Game = Join-Path $PSScriptRoot '..\..\..\..\TestGame\ZeroHour' }   # (a default here: $PSScriptRoot is empty in parameter defaults under -File)
+if (-not $Build) { $Build = Join-Path $PSScriptRoot '..\..\..\build\mptest\GeneralsMD\Release\generalszh.exe' }   # (a default here: $PSScriptRoot is empty in parameter defaults under -File)
 . (Join-Path $PSScriptRoot 'MpTestSettings.ps1')
 if (Get-Process -Name 'generalszh*', 'generals' -ErrorAction SilentlyContinue) { throw 'Zero Hour is running. Close it first.' }
 New-Item -ItemType Directory -Force $OutDir | Out-Null
@@ -99,7 +101,7 @@ try {
     }
 }
 finally {
-    foreach ($p in Get-Process -Name 'generalszh_mp*' -ErrorAction SilentlyContinue) { Stop-Process -Id $p.Id -Force }
+    Stop-MpOwnedCopies -Dir $OutDir -Game $Game
     Start-Sleep -Seconds 1
     Restore-MpSettings -Backup $backup
     Clear-MpGameFiles -Game $Game
@@ -109,3 +111,4 @@ $summary.Insert(0, "LAN join cases: $(if ($allOk) { 'ALL AS EXPECTED' } else { '
 Set-Content -LiteralPath (Join-Path $OutDir 'summary.txt') -Value $summary -Encoding ascii
 $summary
 if (-not $allOk) { exit 1 }
+exit 0

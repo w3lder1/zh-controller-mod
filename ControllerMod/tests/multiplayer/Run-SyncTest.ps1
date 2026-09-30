@@ -21,12 +21,14 @@
 param(
     [int]$Minutes = 15,
     [Parameter(Mandatory = $true)][string]$OutDir,
-    [string]$Game = (Join-Path $PSScriptRoot '..\..\..\..\TestGame\ZeroHour'),
-    [string]$Build = (Join-Path $PSScriptRoot '..\..\..\build\mptest\GeneralsMD\Release\generalszh.exe'),
+    [string]$Game = '',
+    [string]$Build = '',
     [int]$ShotEverySec = 60,
     [int]$MinCrcs = 20
 )
 $ErrorActionPreference = 'Stop'
+if (-not $Game) { $Game = Join-Path $PSScriptRoot '..\..\..\..\TestGame\ZeroHour' }   # (a default here: $PSScriptRoot is empty in parameter defaults under -File)
+if (-not $Build) { $Build = Join-Path $PSScriptRoot '..\..\..\build\mptest\GeneralsMD\Release\generalszh.exe' }   # (a default here: $PSScriptRoot is empty in parameter defaults under -File)
 
 $userData = Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'Command and Conquer Generals Zero Hour Data'
 $exe = Join-Path $Game 'generalszh_mp.exe'
@@ -132,6 +134,7 @@ Set-Content -LiteralPath (Join-Path $OutDir 'steps-B.txt') -Value $stepsB -Encod
 
 # --- Settings: back up, then one LAN address per copy (MpTestSettings.ps1) ------------------------
 . (Join-Path $PSScriptRoot 'MpTestSettings.ps1')
+. (Join-Path $PSScriptRoot 'MpSyncCheck.ps1')
 Backup-MpSettings -Backup $backup
 
 $logA = Join-Path $Game 'DebugLogFile.txt'
@@ -159,57 +162,9 @@ try {
     $rep = Join-Path $userData 'Replays\00000000.rep'
     if (Test-Path -LiteralPath $rep) { Copy-Item -LiteralPath $rep -Destination (Join-Path $OutDir 'match-A.rep') -Force }
 
-    function Read-Log([string]$path) {
-        $crc = @{}; $cmds = New-Object System.Collections.Generic.List[string]; $mismatch = @()
-        if (-not (Test-Path -LiteralPath $path)) { return $null }
-        foreach ($line in [System.IO.File]::ReadLines($path)) {
-            if ($line -match 'Appended CRC on frame (\d+): ([0-9A-F]{8})') { $crc[[int]$Matches[1]] = $Matches[2] }
-            elseif ($line -match 'ZHC-CMD (frame \d+ player \d+ args \d+ \S+)') { $cmds.Add($Matches[1]) }
-            elseif ($line -match 'CRC Mismatch|sawCRCMismatch|mismatch') { $mismatch += $line.Trim() }
-        }
-        return @{ Crc = $crc; Cmds = $cmds; Mismatch = $mismatch }
-    }
-    $a = Read-Log $logA
-    $b = Read-Log $logB
-    $report = New-Object System.Collections.Generic.List[string]
-    $ok = $true
-    if (-not $a -or -not $b) {
-        $ok = $false
-        $report.Add("Missing log: A=$([bool]$a) B=$([bool]$b)")
-    } else {
-        $common = @($a.Crc.Keys | Where-Object { $b.Crc.ContainsKey($_) } | Sort-Object)
-        $diff = @($common | Where-Object { $a.Crc[$_] -ne $b.Crc[$_] })
-        $report.Add("Sync checksums: A wrote $($a.Crc.Count), B wrote $($b.Crc.Count), compared $($common.Count), different $($diff.Count)")
-        if ($common.Count) { $report.Add("  frames $($common[0]) to $($common[-1]) ($([Math]::Round($common[-1] / 30 / 60, 1)) min of game time)") }
-        if ($diff.Count) { $ok = $false; $report.Add("  first difference at frame $($diff[0]): A $($a.Crc[$diff[0]]) B $($b.Crc[$diff[0]])") }
-        if ($common.Count -lt $MinCrcs) { $ok = $false; $report.Add("  too few checksums (need $MinCrcs): the match did not run long enough") }
-        foreach ($side in @(@('A', $a), @('B', $b))) {
-            if ($side[1].Mismatch.Count) { $ok = $false; $report.Add("Copy $($side[0]) logged a mismatch: $($side[1].Mismatch[0])") }
-        }
-
-        # Both copies must have run the same commands. The copy that was stopped last may have run a
-        # few more, so only the shared length is compared.
-        $n = [Math]::Min($a.Cmds.Count, $b.Cmds.Count)
-        $firstDiff = -1
-        for ($i = 0; $i -lt $n; $i++) { if ($a.Cmds[$i] -ne $b.Cmds[$i]) { $firstDiff = $i; break } }
-        $report.Add("Commands: A ran $($a.Cmds.Count), B ran $($b.Cmds.Count); first $n compared, $(if ($firstDiff -lt 0) { 'identical' } else { "differ at #$firstDiff" })")
-        if ($firstDiff -ge 0) { $ok = $false; $report.Add("  A: $($a.Cmds[$firstDiff])"); $report.Add("  B: $($b.Cmds[$firstDiff])") }
-
-        # What the controller sent, per player (from A's log; the streams are the same).
-        $report.Add('Commands by kind (player: count):')
-        $byKind = @{}
-        foreach ($c in $a.Cmds) {
-            if ($c -match 'player (\d+) args \d+ (\S+)') {
-                $key = $Matches[2]
-                if (-not $byKind.ContainsKey($key)) { $byKind[$key] = @{} }
-                $byKind[$key][$Matches[1]] = 1 + [int]$byKind[$key][$Matches[1]]
-            }
-        }
-        foreach ($k in ($byKind.Keys | Sort-Object)) {
-            $per = ($byKind[$k].Keys | Sort-Object | ForEach-Object { "p$_ $($byKind[$k][$_])" }) -join ', '
-            $report.Add(("  {0,-40} {1}" -f $k, $per))
-        }
-    }
+    $check = Test-MpSync (Read-MpLog $logA) (Read-MpLog $logB) ($buildUpMs + $cycles * $cycleMs) $MinCrcs
+    $report = $check.Report
+    $ok = $check.Ok
     $crashLines = @(Get-Content -LiteralPath (Join-Path $OutDir 'run.txt') | Where-Object { $_ -match 'exited\(' })
     if ($crashLines.Count) { $ok = $false; $report.Add("A copy closed early: $($crashLines[0])") }
     if ($ok) { $result = 'PASS' }
@@ -218,10 +173,11 @@ try {
     $report
 }
 finally {
-    foreach ($p in Get-Process -Name 'generalszh_mp' -ErrorAction SilentlyContinue) { Stop-Process -Id $p.Id -Force }
+    Stop-MpOwnedCopies -Dir $OutDir -Game $Game
     Start-Sleep -Seconds 1
     Restore-MpSettings -Backup $backup
     Clear-MpGameFiles -Game $Game
     Write-Host "Settings restored. Result: $result (details in $OutDir\summary.txt)"
 }
 if ($result -ne 'PASS') { exit 1 }
+exit 0

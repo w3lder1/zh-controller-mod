@@ -15,8 +15,12 @@ public static class CapMp {
 "@
 # -Game: the test game folder (a copy of Zero Hour used only for tests), by default TestGame\ZeroHour
 # next to the source folder.
+# Normally called by the Run-*.ps1 tests, which also set up and restore the player settings. The
+# copies it starts are written to pids.txt in -OutDir and always ended when it finishes.
+if (Get-Process -Name 'generalszh*', 'generals' -ErrorAction SilentlyContinue) { throw 'Zero Hour is running. Close it first.' }
 $exe = Join-Path $game 'generalszh_mp.exe'
 New-Item -ItemType Directory -Force $OutDir | Out-Null
+$pidFile = Join-Path $OutDir 'pids.txt'
 $dumpDir = Join-Path $PSScriptRoot '..\..\..\..\CrashDumps'
 $dumpsBefore = @(Get-ChildItem $dumpDir -ErrorAction SilentlyContinue).Count
 
@@ -47,9 +51,16 @@ function Shot($p, [string]$file) {
 }
 
 $start = Get-Date
-$a = Start-Instance $StepsA $exe $EnvA
+$a = $null
 $b = $null
-if (-not $OnlyA) { Start-Sleep -Milliseconds $DelayB; $b = Start-Instance $StepsB $(if ($ExeB) { $ExeB } else { $exe }) $EnvB }
+try {
+$a = Start-Instance $StepsA $exe $EnvA
+Add-Content -LiteralPath $pidFile -Value $a.Id -Encoding ascii
+if (-not $OnlyA) {
+    Start-Sleep -Milliseconds $DelayB
+    $b = Start-Instance $StepsB $(if ($ExeB) { $ExeB } else { $exe }) $EnvB
+    Add-Content -LiteralPath $pidFile -Value $b.Id -Encoding ascii
+}
 $placed = $false
 $i = 0
 # -KillBMs: copy B is ended at that time (a player whose game or connection died). It needs a shot
@@ -75,5 +86,8 @@ foreach ($ms in $ShotsMs) {
     $i++
 }
 if ($KeepSeconds -gt 0) { Start-Sleep -Seconds $KeepSeconds }
-foreach ($p in @($a, $b)) { if ($p -and -not $p.HasExited) { Stop-Process -Id $p.Id -Force } }
+}
+finally {
+    foreach ($p in @($a, $b)) { if ($p) { $p.Refresh(); if (-not $p.HasExited) { Stop-Process -Id $p.Id -Force } } }
+}
 "crash dumps before=$dumpsBefore after=$(@(Get-ChildItem $dumpDir -ErrorAction SilentlyContinue).Count)"

@@ -44,8 +44,26 @@ inline float normalizeTrigger(unsigned char value)
 	return (float)value / 255.0f;
 }
 
+/// TRUE for an ordinary number, FALSE for NaN and the infinities. Reads the bits (all exponent
+/// bits set), so no compiler floating-point mode can optimise the test away.
+inline bool isFinite(float v)
+{
+	union { float f; unsigned int u; } bits;
+	bits.f = v;
+	return (bits.u & 0x7F800000u) != 0x7F800000u;
+}
+
+inline bool isNaN(float v)
+{
+	union { float f; unsigned int u; } bits;
+	bits.f = v;
+	return (bits.u & 0x7F800000u) == 0x7F800000u && (bits.u & 0x007FFFFFu) != 0;
+}
+
+/// v limited to [lo, hi]. NaN, which no comparison can place, becomes lo.
 inline float clampf(float lo, float v, float hi)
 {
+	if (isNaN(v)) return lo;
 	if (v < lo) return lo;
 	if (v > hi) return hi;
 	return v;

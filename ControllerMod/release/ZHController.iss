@@ -25,12 +25,23 @@
   #error Build with package.ps1 (AppVersion is not set)
 #endif
 
-#define AppName "Zero Hour Controller Mod"
+; The Setup tests build a copy with their own identity (/DAppGuid, /DAppName, /DShortcutName), so a
+; test never touches a real install's Apps entry, Start menu group or shortcuts. Releases use these
+; defaults, which must never change (updates find the installed version by them).
+#ifndef AppGuid
+  #define AppGuid "6E0A3C52-8F1B-4C7D-9B2E-5A4D7C1E9F30"
+#endif
+#ifndef AppName
+  #define AppName "Zero Hour Controller Mod"
+#endif
+#ifndef ShortcutName
+  #define ShortcutName "Zero Hour Controller"
+#endif
 #define GameSubfolder "Command and Conquer Generals Zero Hour"
 #define CtrlDir "ZH Controller"
 
 [Setup]
-AppId={{6E0A3C52-8F1B-4C7D-9B2E-5A4D7C1E9F30}
+AppId={{{#AppGuid}}
 AppName={#AppName}
 AppVersion={#AppVersion}
 AppVerName={#AppName} {#AppVersion}
@@ -43,7 +54,7 @@ DirExistsWarning=no
 UsePreviousAppDir=yes
 DisableProgramGroupPage=yes
 DisableReadyPage=no
-DefaultGroupName=Zero Hour Controller
+DefaultGroupName={#ShortcutName}
 UninstallFilesDir={app}\{#CtrlDir}
 UninstallDisplayName={#AppName}
 UninstallDisplayIcon={app}\generalszh.exe
@@ -89,8 +100,8 @@ Source: "{#SourceDir}\LICENSE.txt"; DestDir: "{app}\{#CtrlDir}"; Flags: ignoreve
 Source: "{#SourceDir}\VERSION.txt"; DestDir: "{app}\{#CtrlDir}"; Flags: ignoreversion
 
 [Icons]
-Name: "{autodesktop}\Zero Hour Controller"; Filename: "{app}\generalszh.exe"; WorkingDir: "{app}"; Comment: "Command & Conquer Generals Zero Hour with the controller mod"; Tasks: desktopicon
-Name: "{group}\Zero Hour Controller"; Filename: "{app}\generalszh.exe"; WorkingDir: "{app}"; Comment: "Command & Conquer Generals Zero Hour with the controller mod"
+Name: "{autodesktop}\{#ShortcutName}"; Filename: "{app}\generalszh.exe"; WorkingDir: "{app}"; Comment: "Command & Conquer Generals Zero Hour with the controller mod"; Tasks: desktopicon
+Name: "{group}\{#ShortcutName}"; Filename: "{app}\generalszh.exe"; WorkingDir: "{app}"; Comment: "Command & Conquer Generals Zero Hour with the controller mod"
 Name: "{group}\Controls"; Filename: "{app}\{#CtrlDir}\CONTROLS.txt"
 Name: "{group}\Read me"; Filename: "{app}\{#CtrlDir}\README.txt"
 Name: "{group}\Uninstall the controller mod"; Filename: "{uninstallexe}"
@@ -215,6 +226,60 @@ begin
       if CompareText(Trim(Lines[I]), 'ExeSHA256=' + Hash) = 0 then Result := True;
 end;
 
+{ Every file the zip installer has ever added (all versions), as Install-ZHController.ps1 lists them.
+  A zip record may name nothing else. }
+function KnownZipFile(const Rel: String): Boolean;
+begin
+  Result := (CompareText(Rel, 'generalszh.exe') = 0) or
+    (CompareText(Rel, '{#CtrlDir}\README.txt') = 0) or (CompareText(Rel, '{#CtrlDir}\CONTROLS.txt') = 0) or
+    (CompareText(Rel, '{#CtrlDir}\RELEASE_NOTES.txt') = 0) or (CompareText(Rel, '{#CtrlDir}\LICENSE.txt') = 0) or
+    (CompareText(Rel, '{#CtrlDir}\VERSION.txt') = 0) or (CompareText(Rel, '{#CtrlDir}\Uninstall-ZHController.ps1') = 0) or
+    (CompareText(Rel, '{#CtrlDir}\Uninstall.cmd') = 0);
+end;
+
+function IsSha256(const S: String): Boolean;
+var
+  I: Integer;
+begin
+  Result := Length(S) = 64;
+  for I := 1 to Length(S) do
+    if Pos(Uppercase(S[I]), '0123456789ABCDEF') = 0 then Result := False;
+end;
+
+{ '' when there is no zip record or every entry in it is a known file with a SHA-256; else the reason.
+  The whole record is checked before Setup changes anything. }
+function ZipRecordProblem(const GameDir: String): String;
+var
+  Files: TArrayOfString;
+  I, Bar: Integer;
+begin
+  Result := '';
+  if not ReadZipRecord(GameDir, Files) then Exit;
+  for I := 0 to GetArrayLength(Files) - 1 do begin
+    Bar := Pos('|', Files[I]);
+    if (Bar = 0) or not KnownZipFile(Copy(Files[I], 1, Bar - 1)) or not IsSha256(Copy(Files[I], Bar + 1, Length(Files[I]))) then begin
+      Result := 'The record of the earlier install (' + '{#CtrlDir}\' + RecordName + ') lists something this mod never installs:' + #13#10 +
+        Files[I] + #13#10#13#10 + 'Setup did not change anything. Uninstall the earlier version with its Uninstall.cmd first.';
+      Exit;
+    end;
+  end;
+end;
+
+{ The folder itself is a link or junction (its files would land somewhere else). }
+function IsLinkFolder(const Dir: String): Boolean;
+var
+  FindRec: TFindRec;
+begin
+  Result := False;
+  if FindFirst(Dir, FindRec) then begin
+    try
+      Result := (FindRec.Attributes and $400) <> 0;   { FILE_ATTRIBUTE_REPARSE_POINT }
+    finally
+      FindClose(FindRec);
+    end;
+  end;
+end;
+
 { '' when Setup may install into GameDir, else the reason it may not. }
 function CheckGameDir(const GameDir: String): String;
 var
@@ -234,6 +299,12 @@ begin
     Exit;
   end;
   Ctrl := AddBackslash(GameDir) + '{#CtrlDir}';
+  if DirExists(Ctrl) and IsLinkFolder(Ctrl) then begin
+    Result := 'The folder "' + Ctrl + '" is a link or junction to somewhere else. Setup did not change anything.';
+    Exit;
+  end;
+  Result := ZipRecordProblem(GameDir);
+  if Result <> '' then Exit;
   if DirExists(Ctrl) and not SetupInstalledHere(GameDir) and not ReadZipRecord(GameDir, Dummy) then begin
     HasOther := False;
     if FindFirst(Ctrl + '\*', FindRec) then begin
@@ -288,11 +359,13 @@ var
   Rel, Path: String;
 begin
   if not ReadZipRecord(GameDir, Files) then Exit;
+  { PrepareToInstall refused a record with anything unknown in it; checked again right here. }
+  if ZipRecordProblem(GameDir) <> '' then Exit;
   for I := 0 to GetArrayLength(Files) - 1 do begin
     Bar := Pos('|', Files[I]);
     if Bar = 0 then Continue;
     Rel := Copy(Files[I], 1, Bar - 1);
-    if (Pos('..', Rel) > 0) or ((CompareText(Rel, 'generalszh.exe') <> 0) and (CompareText(Copy(Rel, 1, Length('{#CtrlDir}\')), '{#CtrlDir}\') <> 0)) then Continue;
+    if not KnownZipFile(Rel) then Continue;
     Path := AddBackslash(GameDir) + Rel;
     if SameHash(Path, Copy(Files[I], Bar + 1, Length(Files[I]))) then DeleteFile(Path);
   end;

@@ -13,7 +13,7 @@ body:
     attributes:
       label: Controller mod version
       description: Shown in the game window's title, or in ZH Controller\VERSION.txt in your game folder.
-      placeholder: "1.2.0"
+      placeholder: "1.2.1"
     validations:
       required: true
   - type: dropdown

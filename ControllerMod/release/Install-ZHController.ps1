@@ -270,6 +270,8 @@ function New-DesktopShortcut([string]$target, [string]$workDir) {
 # =================================================================================================
 if (-not $Copy) {
     $ctrlDir = Join-Path $GamePath $InPlaceDirName
+    # The folder itself must not be a link either (its files would land somewhere else).
+    Assert-NoLinkOnPath $ctrlDir "'$InPlaceDirName' folder"
     $exeTarget = Join-Path $GamePath 'generalszh.exe'
     if (-not $ElevatedChild) {
         Write-Host "Your game:      $GamePath"
@@ -357,7 +359,9 @@ if (-not $Copy) {
         foreach ($old in $recorded.Keys) { foreach ($h in $recorded[$old]) { $lines += "File=$old|$h" } }
         foreach ($rel in $plan.Keys) { $lines += "File=$rel|$(Get-Hash $plan[$rel])" }
 
+        Assert-NoLinkOnPath $ctrlDir "'$InPlaceDirName' folder"
         [System.IO.Directory]::CreateDirectory($ctrlDir) | Out-Null
+        Assert-NoLinkOnPath $ctrlDir "'$InPlaceDirName' folder"   # again: it could have been made a link meanwhile
         $markerFile = Join-Path $ctrlDir $MarkerName
         try {
             Write-Record $markerFile $lines

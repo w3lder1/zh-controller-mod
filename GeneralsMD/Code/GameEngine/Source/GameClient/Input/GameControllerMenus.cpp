@@ -490,6 +490,8 @@ void GameController::placeMenuCursor(const ICoord2D &pos)
 {
 	if (TheMouse)
 		TheMouse->setPosition(pos.x, pos.y);
+	// The controller moved the cursor, not the player: the mouse takeover check starts from here.
+	m_lastMousePos = pos;
 	POINT target;
 	target.x = pos.x;
 	target.y = pos.y;

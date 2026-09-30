@@ -119,6 +119,29 @@ $r = Run $ps64 $uninst @('-GamePath', $game4, '-Yes')
 Check 'in-place: uninstall refuses a junction in its folder' ($r.Code -ne 0 -and (Test-Path "$game\INIZH.big")) $r.Out
 cmd /c rmdir "$game4\ZH Controller\Link"
 
+# The 'ZH Controller' folder itself a junction to somewhere else: install, update and uninstall
+# refuse, and nothing is written or removed at the far end.
+$game5 = Join-Path $base 'Game5'
+New-FakeGame $game5
+$elsewhere = Join-Path $base 'Elsewhere5'
+New-Item -ItemType Directory $elsewhere | Out-Null
+Set-Content -LiteralPath "$elsewhere\keep.txt" -Value 'not the mod''s'
+cmd /c mklink /J "$game5\ZH Controller" "$elsewhere" | Out-Null
+$r = Run $ps64 $inst @('-GamePath', $game5, '-NoShortcut')
+Check "in-place: install refuses a 'ZH Controller' junction" ($r.Code -ne 0 -and -not (Test-Path "$game5\generalszh.exe") -and @(Get-ChildItem -LiteralPath $elsewhere).Count -eq 1) $r.Out
+cmd /c rmdir "$game5\ZH Controller"
+$r = Run $ps64 $inst @('-GamePath', $game5, '-NoShortcut')
+Check 'in-place: fixture install for the junction checks' ($r.Code -eq 0) $r.Out
+Copy-Item -Recurse -LiteralPath "$game5\ZH Controller\*" -Destination $elsewhere
+cmd /c rmdir /s /q "$game5\ZH Controller"
+cmd /c mklink /J "$game5\ZH Controller" "$elsewhere" | Out-Null
+$farBefore = Get-TreeFingerprint $elsewhere @()
+$r = Run $ps64 $inst @('-GamePath', $game5, '-NoShortcut')
+Check "in-place: update refuses a 'ZH Controller' junction" ($r.Code -ne 0 -and (Get-TreeFingerprint $elsewhere @()) -eq $farBefore) $r.Out
+$r = Run $ps64 $uninst @('-GamePath', $game5, '-Yes')
+Check "in-place: uninstall refuses a 'ZH Controller' junction" ($r.Code -ne 0 -and (Get-TreeFingerprint $elsewhere @()) -eq $farBefore -and (Test-Path "$game5\generalszh.exe")) $r.Out
+cmd /c rmdir "$game5\ZH Controller"
+
 # The installed Uninstall.cmd, double-clicked (one cmd started in its folder).
 $before = Get-TreeFingerprint $game $added
 $enter = Join-Path $base 'enter.txt'

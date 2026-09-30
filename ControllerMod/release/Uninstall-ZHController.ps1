@@ -234,6 +234,8 @@ if ($mode -eq 'InPlace') {
     $GamePath = Get-SafeFullPath $GamePath 'game folder'
     Assert-NoLinkOnPath $GamePath 'game folder'
     $ctrlDir = Join-Path $GamePath $InPlaceDirName
+    # The folder itself must not be a link either (the files there would be someone else's).
+    Assert-NoLinkOnPath $ctrlDir "'$InPlaceDirName' folder"
     if (-not (Test-Path -LiteralPath $ctrlDir -PathType Container)) { Fail "The controller is not installed in $GamePath ($InPlaceDirName is missing)." }
     $link = Find-LinkInside $ctrlDir
     if ($link) { Fail "There is a link or junction inside $ctrlDir ($link)." }
@@ -279,6 +281,7 @@ if ($mode -eq 'InPlace') {
         Set-Location -LiteralPath $env:TEMP
         [System.IO.Directory]::SetCurrentDirectory($env:TEMP)
         $kept = @()
+        Assert-NoLinkOnPath $ctrlDir "'$InPlaceDirName' folder"
         foreach ($f in $files) {
             if (-not (Test-Path -LiteralPath $f.Path)) { continue }
             if (-not (Test-Path -LiteralPath $f.Path -PathType Leaf)) { $kept += $f.Rel; continue }

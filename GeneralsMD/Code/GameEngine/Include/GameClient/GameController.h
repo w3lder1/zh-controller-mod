@@ -206,7 +206,7 @@ private:
 	enum OrderMode { ORDERMODE_NONE = 0, ORDERMODE_FORCE_ATTACK, ORDERMODE_WAYPOINTS };
 
 	void loadSettings();
-	void saveSettings();
+	Bool saveSettings();   ///< FALSE when ControllerMod.ini could not be written
 	void loadTestInput();
 	void applyTestInput(ControllerState *state, Bool inBattle);
 	void updateInput();
@@ -543,6 +543,8 @@ private:
 	std::vector<Coord3D> m_linePoints;
 	Bool m_lineGuard;               ///< clicking the left stick while drawing: the line guards instead of moving
 	UnsignedInt m_sellConfirmUntilMs; ///< selling several objects needs a second A before this time
+	std::vector<ObjectID> m_sellConfirmIDs;   ///< ... on exactly these objects (sorted) ...
+	const CommandButton *m_sellConfirmCommand; ///< ... with this Sell button (compared only)
 	Bool m_scienceShownByUs;        ///< we opened the promotion window and close it again
 	Int m_orderMode;                ///< OrderMode
 	Int m_groupClearPending;        ///< group waiting for the clear confirmation, or -1

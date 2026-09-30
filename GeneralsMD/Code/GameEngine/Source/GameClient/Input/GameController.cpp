@@ -148,6 +148,22 @@ void ControllerSettings::setDefaults()
 
 void ControllerSettings::validate()
 {
+	// A number that is not a number ("nan", "inf" typed into the file) gets its default: no range
+	// check can place it, and it would stop the pad from ever reading as at rest.
+	ControllerSettings d;
+	d.setDefaults();
+	Real *const reals[] = { &innerDeadzoneLeft, &innerDeadzoneRight, &outerLimit, &responseExponent, &triggerDeadzone,
+		&panRate, &boostMultiplier, &yawRateDegrees, &zoomRate, &smoothingMs, &brushRadiusMin, &brushRadiusMax,
+		&assistRadius, &assistRetention, &triggerPress, &triggerRelease, &brushUnitPadding, &precisionMultiplier };
+	const Real *const defaults[] = { &d.innerDeadzoneLeft, &d.innerDeadzoneRight, &d.outerLimit, &d.responseExponent, &d.triggerDeadzone,
+		&d.panRate, &d.boostMultiplier, &d.yawRateDegrees, &d.zoomRate, &d.smoothingMs, &d.brushRadiusMin, &d.brushRadiusMax,
+		&d.assistRadius, &d.assistRetention, &d.triggerPress, &d.triggerRelease, &d.brushUnitPadding, &d.precisionMultiplier };
+	for (Int i = 0; i < (Int)(sizeof(reals) / sizeof(reals[0])); ++i)
+	{
+		if (!ControllerMath::isFinite(*reals[i]))
+			*reals[i] = *defaults[i];
+	}
+
 	innerDeadzoneLeft = ControllerMath::clampf(0.0f, innerDeadzoneLeft, 0.6f);
 	innerDeadzoneRight = ControllerMath::clampf(0.0f, innerDeadzoneRight, 0.6f);
 	outerLimit = ControllerMath::clampf(0.5f, outerLimit, 1.0f);
@@ -263,6 +279,7 @@ GameController::GameController() :
 	m_lineDownMs(0),
 	m_lineGeneration(0),
 	m_sellConfirmUntilMs(0),
+	m_sellConfirmCommand(nullptr),
 	m_scienceShownByUs(FALSE),
 	m_orderMode(ORDERMODE_NONE),
 	m_groupClearPending(-1),
@@ -489,7 +506,7 @@ void GameController::loadSettings()
 }
 
 /// Writes every setting to ControllerMod.ini. Keys the controller does not know are kept.
-void GameController::saveSettings()
+Bool GameController::saveSettings()
 {
 	UserPreferences prefs;
 	prefs.load(SETTINGS_FILE);
@@ -533,7 +550,7 @@ void GameController::saveSettings()
 	prefs.setInt("LineMoveHoldMs", m_settings.lineMoveHoldMs);
 	prefs.setBool("OpenWheelOnBuilding", m_settings.openWheelOnBuilding);
 	saveButtonMap(&prefs);
-	prefs.write();
+	return prefs.write();
 }
 
 void GameController::reset()
@@ -955,6 +972,7 @@ Bool GameController::isTestStepActive(const TestStep &step, UnsignedInt nowMs) c
 
 void GameController::applyTestInput(ControllerState *state, Bool inBattle)
 {
+#if CONTROLLERMOD_ENABLE_TEST_INPUT
 	if (m_testSteps.empty() || !state->connected)
 		return;
 	const UnsignedInt now = timeGetTime();
@@ -1024,6 +1042,10 @@ void GameController::applyTestInput(ControllerState *state, Bool inBattle)
 #endif
 		}
 	}
+#else
+	(void)state;
+	(void)inBattle;
+#endif
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -1289,6 +1311,39 @@ void GameController::updateInput()
 		return;
 	}
 
+	// --- 2. Who owns this frame: the pad or the mouse -----------------------------------------
+	// Decided before any button or timer acts: on the frame the mouse takes over, what the pad had
+	// half-finished (a held X about to clear a queue, a held A about to paint) is dropped first,
+	// never completed.
+	Real lx, ly, rx, ry;
+	ControllerMath::processStick(state.leftX, state.leftY, m_settings.innerDeadzoneLeft, m_settings.outerLimit,
+		m_settings.responseExponent, &lx, &ly);
+	ControllerMath::processStick(state.rightX, state.rightY, m_settings.innerDeadzoneRight, m_settings.outerLimit,
+		m_settings.responseExponent, &rx, &ry);
+	const Real boost = ControllerMath::processTrigger(state.leftTrigger, m_settings.triggerDeadzone);
+	const Real fast = ControllerMath::processTrigger(state.rightTrigger, m_settings.triggerDeadzone);
+
+	// Whichever device was used last owns the reticle. The mouse check runs every frame so its
+	// baselines stay current; controller input wins a tie.
+	const Bool mouseActed = mouseActedThisFrame();
+	const Bool anyInput = pressed != 0 || lx != 0.0f || ly != 0.0f || rx != 0.0f || ry != 0.0f || boost > 0.0f;
+	if (anyInput)
+	{
+		m_active = TRUE;
+		m_mouseTravel = 0;
+	}
+	else if (mouseActed)
+	{
+		// The mouse took over: an edge offset belongs to controller panning, so it goes too, and
+		// the mouse must not inherit a force-attack or waypoint mode it cannot see.
+		m_active = FALSE;
+		m_mouseTravel = 0;
+		m_reticleOffset.x = m_reticleOffset.y = 0.0f;
+		endOrderMode(FALSE);
+		// A held A (brush), a pending bumper or a held X must not finish over what the mouse does.
+		resetTransientInput();
+	}
+
 	// What is under the reticle, as seen in the frame the player is looking at, before any action.
 	if (inBattle && !m_helpVisible)
 		updateHover();
@@ -1328,36 +1383,6 @@ void GameController::updateInput()
 	else
 	{
 		m_orderHint = GameMessage::MSG_INVALID;
-	}
-
-	// --- 2. Sticks and triggers ---------------------------------------------------------------
-	Real lx, ly, rx, ry;
-	ControllerMath::processStick(state.leftX, state.leftY, m_settings.innerDeadzoneLeft, m_settings.outerLimit,
-		m_settings.responseExponent, &lx, &ly);
-	ControllerMath::processStick(state.rightX, state.rightY, m_settings.innerDeadzoneRight, m_settings.outerLimit,
-		m_settings.responseExponent, &rx, &ry);
-	const Real boost = ControllerMath::processTrigger(state.leftTrigger, m_settings.triggerDeadzone);
-	const Real fast = ControllerMath::processTrigger(state.rightTrigger, m_settings.triggerDeadzone);
-
-	// Whichever device was used last owns the reticle. The mouse check runs every frame so its
-	// baselines stay current; controller input wins a tie.
-	const Bool mouseActed = mouseActedThisFrame();
-	const Bool anyInput = pressed != 0 || lx != 0.0f || ly != 0.0f || rx != 0.0f || ry != 0.0f || boost > 0.0f;
-	if (anyInput)
-	{
-		m_active = TRUE;
-		m_mouseTravel = 0;
-	}
-	else if (mouseActed)
-	{
-		// The mouse took over: an edge offset belongs to controller panning, so it goes too, and
-		// the mouse must not inherit a force-attack or waypoint mode it cannot see.
-		m_active = FALSE;
-		m_mouseTravel = 0;
-		m_reticleOffset.x = m_reticleOffset.y = 0.0f;
-		endOrderMode(FALSE);
-		// A held A (brush), a pending bumper or a held X must not finish over what the mouse does.
-		resetTransientInput();
 	}
 
 	// After a context change each stick must come back to rest before it counts again. The two

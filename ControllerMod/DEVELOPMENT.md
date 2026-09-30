@@ -73,6 +73,15 @@ retail game (VC6), so it only stays in sync with the same build.
   observers) apply.
 - **Status:** tested only with two copies on one PC (the tests below), never between two PCs.
 
+## Limits inherited from the game
+
+- **Control groups and selections over 255 objects:** a game message stores its argument count in one
+  byte, so a group of 256 objects is recorded as empty and 257 as one. The mouse and keyboard have the
+  same limit; the controller makes such selections easier (whole army).
+- **Play statistics** (only with the `-playStats` debug option): the game counts a move each time an
+  order is evaluated, also when it is only previewed (the controller's "what X would do", like the
+  mouse cursor's). No effect on the match or its sync.
+
 ## Installer
 
 `ControllerMod/release`: `ZHController.iss` (Inno Setup, the main download) and
@@ -93,8 +102,9 @@ retail game (VC6), so it only stays in sync with the same build.
 | --- | --- | --- |
 | Unit tests | `ControllerMod\scripts\test.cmd` | `ControllerMath.h` |
 | Zip installer | `ControllerMod\tests\installer\Test-ZipInstaller.ps1` | install, update, uninstall, tampered records, locked files, non-ASCII paths, links, copy mode (fake game folders in %TEMP%) |
-| Setup | `ControllerMod\tests\installer\Test-Setup.ps1 -Version <v>` | silent per-user installs into fake folders: wrong folder, EA folder layout, foreign exe/folder, take-over of a zip install, upgrade, uninstall |
+| Setup | `ControllerMod\tests\installer\Test-Setup.ps1 -Version <v>` | a test copy of Setup with its own identity (Apps entry, Start menu, shortcuts), silent per-user installs into fake folders: wrong folder, EA folder layout, foreign exe/folder, a junction as `ZH Controller`, take-over of a zip install, an edited zip record, upgrade (`-RealIdentity -PreviousSetup`), uninstall |
 | Multiplayer sync | `ControllerMod\tests\multiplayer\Run-SyncTest.ps1 -Minutes 15 -OutDir <folder>` | two copies on this PC play a LAN match with scripted controller input; every sync checksum and the command stream must match (needs the test build from `build-mptest.cmd`) |
+| Sync verdict | `ControllerMod\tests\multiplayer\Test-MpSyncCheck.ps1` | the sync test's pass rules on made-up logs (no game): zero commands, a match that ended early, a different checksum, commands one copy ran early must all fail |
 | LAN join rules | `ControllerMod\tests\multiplayer\Run-LanGateCases.ps1 -OutDir <folder>` | who may join whom: same build, other build, other version, normal-Zero-Hour joiner and host |
 | Lobby by pad | `ControllerMod\tests\multiplayer\Run-LobbyByPad.ps1 -OutDir <folder>` | a LAN game set up and started with the controller only: menus, create, join from the list, chat with the on-screen keyboard, Accept, Play Game |
 | Match by pad | `ControllerMod\tests\multiplayer\Run-MatchByPad.ps1 -OutDir <folder> [-Case chat\|drop]` | a LAN match with the controller only. `chat`: pause menu, chat to everyone and allies, surrender, score screen. `drop`: one copy is ended mid-match; the other uses the "waiting for players" screen (chat, vote) and plays on |

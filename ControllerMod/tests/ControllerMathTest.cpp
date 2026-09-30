@@ -408,6 +408,20 @@ static void testKeyboardMove()
 	check(r == 0 && c == 0, "keyboard: an invalid position resets to the first key");
 }
 
+static void testNonFinite()
+{
+	volatile float zero = 0.0f;   // not a constant, so the compiler cannot refuse the division
+	const float nan = zero / zero;
+	const float inf = 1.0f / zero;
+	check(!isFinite(nan) && !isFinite(inf) && !isFinite(-inf) && isFinite(0.0f) && isFinite(-3.5f) && isFinite(1e30f), "non-finite: isFinite");
+	check(isNaN(nan) && !isNaN(inf) && !isNaN(0.0f), "non-finite: isNaN");
+	check(clampf(0.1f, nan, 0.9f) == 0.1f, "non-finite: NaN clamps to the low end");
+	check(clampf(0.1f, inf, 0.9f) == 0.9f && clampf(0.1f, -inf, 0.9f) == 0.1f, "non-finite: infinities clamp to the ends");
+	// A resting stick with a clamped (formerly NaN) deadzone reads as at rest, not as NaN.
+	float x = 1.0f, y = 1.0f;
+	processStick(0.0f, 0.0f, clampf(0.0f, nan, 0.6f), 0.98f, 1.0f, &x, &y);
+	check(x == 0.0f && y == 0.0f, "non-finite: resting stick is neutral after clamping");
+}
 int main()
 {
 	testNormalizeAxis();
@@ -426,6 +440,7 @@ int main()
 	testTypeCycle();
 	testReticleTiming();
 	testKeyboardMove();
+	testNonFinite();
 
 	printf("%d checks, %d failed\n", g_checks, g_failures);
 	return g_failures == 0 ? 0 : 1;

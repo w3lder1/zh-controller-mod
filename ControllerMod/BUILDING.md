@@ -19,9 +19,11 @@ The scripts find their paths from where they are: the repository is two folders 
 | --- | --- | --- |
 | Unit tests (pure input math) | `ControllerMod\scripts\test.cmd` | "N checks, 0 failed", exit code 0 |
 | Test build (scripted test input ON) | `ControllerMod\scripts\build.cmd` | `build\win32\GeneralsMD\Release\generalszh.exe` |
-| Player package | `ControllerMod\scripts\package.cmd 1.0.3` | `<work>\Release\ZHController-Setup-1.0.3.exe` and `ZHController-1.0.3.zip` |
+| Player package | `ControllerMod\scripts\package.cmd <version>` (the version in `Core\GameEngine\Include\Common\ControllerModVersion.h`, e.g. 1.2.1) | `<work>\Release\ZHController-Setup-<version>.exe` and `ZHController-<version>.zip` |
 | Zip installer tests | `powershell -ExecutionPolicy Bypass -File ControllerMod\tests\installer\Test-ZipInstaller.ps1` | fake game folders in %TEMP% only |
-| Setup tests | `powershell -ExecutionPolicy Bypass -File ControllerMod\tests\installer\Test-Setup.ps1 -Version 1.0.3 -ReleaseDir <work>\Release` | per-user silent installs into fake folders in %TEMP% |
+| Setup tests | `powershell -ExecutionPolicy Bypass -File ControllerMod\tests\installer\Test-Setup.ps1 -Version <version>` (after packaging) | a test copy of Setup with its own identity, silent per-user installs into fake folders in %TEMP%; `-RealIdentity -PreviousSetup <older Setup>` tests the upgrade with the released Setup |
+| Multiplayer test build | `ControllerMod\tests\multiplayer\build-mptest.cmd` | `build\mptest\...\generalszh.exe` (scripted input, debug log, several copies per PC); the tests are listed in `DEVELOPMENT.md` |
+| Sync test verdict (no game) | `powershell -ExecutionPolicy Bypass -File ControllerMod\tests\multiplayer\Test-MpSyncCheck.ps1` | made-up logs: each way a bad run could pass must fail |
 
 `package.cmd` refuses a repository with uncommitted changes (a release is one fixed commit, which
 VERSION.txt records in full) and always builds with `CONTROLLERMOD_TEST_INPUT=OFF`, so no environment

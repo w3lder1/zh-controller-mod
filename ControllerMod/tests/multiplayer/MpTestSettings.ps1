@@ -11,15 +11,27 @@ $MpUserData = Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'Command a
 $MpTouched = 'options.ini', 'Network.ini', 'ControllerMod.ini', 'Replays\00000000.rep'
 $MpInstanceFiles = 'Options_Instance02.ini', 'Network_Instance02.ini', 'Skirmish_Instance02.ini', 'Replays\00000000_Instance02.rep'
 
+# The backup is a new folder for each run, with a list (backup.txt) of every file: there or not,
+# and its SHA-256. A folder that already exists is refused, so an old backup is never put back.
 function Backup-MpSettings([string]$Backup) {
-    New-Item -ItemType Directory -Force (Join-Path $Backup 'Replays') | Out-Null
+    if (Test-Path -LiteralPath $Backup) { throw "The backup folder $Backup already exists (an earlier run?). Use a new -OutDir." }
     foreach ($f in $MpInstanceFiles) {
         if (Test-Path -LiteralPath (Join-Path $MpUserData $f)) { throw "$f already exists in the user data folder; remove it or check what made it." }
     }
+    New-Item -ItemType Directory -Force (Join-Path $Backup 'Replays') | Out-Null
+    $list = New-Object System.Collections.Generic.List[string]
     foreach ($f in $MpTouched) {
         $src = Join-Path $MpUserData $f
-        if (Test-Path -LiteralPath $src) { Copy-Item -LiteralPath $src -Destination (Join-Path $Backup $f) -Force }
+        if (Test-Path -LiteralPath $src -PathType Leaf) {
+            $hash = (Get-FileHash -LiteralPath $src -Algorithm SHA256).Hash
+            Copy-Item -LiteralPath $src -Destination (Join-Path $Backup $f) -Force
+            if ((Get-FileHash -LiteralPath (Join-Path $Backup $f) -Algorithm SHA256).Hash -ne $hash) { throw "Backing up $f failed." }
+            $list.Add("present|$hash|$f")
+        } else {
+            $list.Add("absent||$f")
+        }
     }
+    Set-Content -LiteralPath (Join-Path $Backup 'backup.txt') -Value $list -Encoding ascii
 }
 
 function Set-MpTwoCopySettings([int]$Faction = 2) {
@@ -39,16 +51,38 @@ function Set-MpTwoCopySettings([int]$Faction = 2) {
     }
 }
 
+# Puts back exactly what backup.txt lists and checks the hashes; without that list nothing is
+# touched. The second copy's files are removed.
 function Restore-MpSettings([string]$Backup) {
-    foreach ($f in $MpTouched) {
-        $saved = Join-Path $Backup $f
+    $listFile = Join-Path $Backup 'backup.txt'
+    if (-not (Test-Path -LiteralPath $listFile)) { throw "No backup list in $Backup; nothing was restored. Check the settings by hand." }
+    $problems = @()
+    foreach ($entry in Get-Content -LiteralPath $listFile) {
+        $state, $hash, $f = $entry -split '\|', 3
         $live = Join-Path $MpUserData $f
-        if (Test-Path -LiteralPath $saved) { Copy-Item -LiteralPath $saved -Destination $live -Force }
-        elseif (Test-Path -LiteralPath $live) { Remove-Item -LiteralPath $live -Force }
+        if ($state -eq 'present') {
+            Copy-Item -LiteralPath (Join-Path $Backup $f) -Destination $live -Force
+            if ((Get-FileHash -LiteralPath $live -Algorithm SHA256).Hash -ne $hash) { $problems += $f }
+        } elseif (Test-Path -LiteralPath $live) {
+            Remove-Item -LiteralPath $live -Force
+        }
     }
     foreach ($f in $MpInstanceFiles) {
         $live = Join-Path $MpUserData $f
         if (Test-Path -LiteralPath $live) { Remove-Item -LiteralPath $live -Force }
+    }
+    if ($problems.Count) { throw "Restored with different content: $($problems -join ', '). The backup is in $Backup." }
+}
+
+# Ends only the game copies Run-TwoInstances.ps1 started (their process ids are in pids.txt files
+# under $Dir), and only while they still run the test program of the test game folder.
+function Stop-MpOwnedCopies([string]$Dir, [string]$Game) {
+    $exe = [System.IO.Path]::GetFullPath((Join-Path $Game 'generalszh_mp.exe'))
+    foreach ($file in @(Get-ChildItem -LiteralPath $Dir -Recurse -Filter 'pids.txt' -ErrorAction SilentlyContinue)) {
+        foreach ($id in Get-Content -LiteralPath $file.FullName) {
+            $proc = Get-Process -Id ([int]$id) -ErrorAction SilentlyContinue
+            if ($proc -and $proc.Path -and [System.IO.Path]::GetFullPath($proc.Path) -eq $exe) { Stop-Process -Id $proc.Id -Force }
+        }
     }
 }
 

@@ -1,6 +1,24 @@
 ZERO HOUR CONTROLLER MOD - RELEASE NOTES
 ========================================
 
+VERSION 1.2.1
+-------------
+Fixes from an independent review:
+- Selling several buildings: the "Press A again to confirm" now belongs to
+  exactly the buildings you asked about. If the selection changes in
+  between (a keyboard group, the mouse), A asks again instead of selling.
+- Taking over with the mouse: a controller action that was about to finish
+  (holding X to empty a build queue) is dropped the moment the mouse moves,
+  never completed.
+- A setting typed by hand as "nan" or "inf" in ControllerMod.ini is replaced
+  by its default (it could stop the controller from working).
+- The settings screen says so when ControllerMod.ini can't be saved.
+- Installer safety: the zip installer and uninstaller refuse a "ZH
+  Controller" folder that is a link or junction to somewhere else; Setup
+  does too, and it only takes over a zip install whose record lists files
+  this mod really installs.
+- Multiplayer is still experimental (see 1.2.0). Players on 1.2.0 and 1.2.1
+  can't play each other: everyone needs the same version.
 VERSION 1.2.0
 -------------
 - Multiplayer (LAN and VPN) between Controller Mod players: EXPERIMENTAL and

@@ -244,8 +244,7 @@ void GameController::updateEmergencyReset(UnsignedInt nowMs, Bool appActive)
 		return;
 	ControllerMath::setDefaultButtonMap(m_settings.buttonMap);
 	afterButtonMapChange();
-	saveSettings();
-	showSettingsMessage("Default buttons restored (A, B, X, Y, LB, RB)");
+	showSettingsMessage(saveSettings() ? "Default buttons restored (A, B, X, Y, LB, RB)" : "Default buttons restored (could not save ControllerMod.ini)");
 	if (TheInGameUI && isBattlefieldContext())
 		TheInGameUI->messageNoFormat(toUnicodeText("Controller: default buttons restored"));
 }
@@ -296,8 +295,7 @@ void GameController::closeSettingsScreen()
 	m_settingsOpen = FALSE;
 	m_settingsCapture = -1;
 	m_settings.validate();
-	saveSettings();
-	showSettingsMessage("Controller settings saved");
+	showSettingsMessage(saveSettings() ? "Controller settings saved" : "Could not save ControllerMod.ini (the settings apply until the game closes)");
 	beginInputContext();
 }
 

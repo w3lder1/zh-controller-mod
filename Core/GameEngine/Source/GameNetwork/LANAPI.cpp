@@ -369,6 +369,15 @@ void LANAPI::update()
 				continue;
 			}
 
+			// ControllerMod @fix The receive slots are reused and a packet only overwrites its own length:
+			// the bytes after it are an older packet's. They are cleared, so a short packet never shows
+			// an older packet's Controller Mod tag (ControllerModLan.h) or the end of its strings.
+			{
+				TransportMessage &in = m_transport->m_inBuffer[i];
+				if (in.length > 0 && (size_t)in.length < sizeof(in.data))
+					memset(in.data + in.length, 0, sizeof(in.data) - in.length);
+			}
+
 			LANMessage *msg = (LANMessage *)(m_transport->m_inBuffer[i].data);
 			//DEBUG_LOG(("LAN message type %s from %ls (%s@%s)", GetMessageTypeString(msg->messageType).str(),
 			//	msg->name, msg->userName, msg->hostName));
