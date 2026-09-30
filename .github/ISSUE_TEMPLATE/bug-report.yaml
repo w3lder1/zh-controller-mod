@@ -1,0 +1,58 @@
+name: Controller mod bug report
+description: Something about the controller mod does not work as expected
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. This page is for the **controller mod** only. If the problem also happens
+        without the controller (with the mouse, or in TheSuperHackers' own Community Patch builds),
+        please check [TheSuperHackers/GeneralsGameCode](https://github.com/TheSuperHackers/GeneralsGameCode) instead.
+  - type: input
+    id: version
+    attributes:
+      label: Controller mod version
+      description: Shown in the game window's title, or in ZH Controller\VERSION.txt in your game folder.
+      placeholder: "1.1.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: game
+    attributes:
+      label: Your copy of Zero Hour
+      options:
+        - EA App
+        - Steam (The Ultimate Collection)
+        - Origin or CD / other
+    validations:
+      required: true
+  - type: input
+    id: controller
+    attributes:
+      label: Controller
+      placeholder: "Xbox One, wired"
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: How to make it happen
+      description: The steps, which faction, which screen. A screenshot or short video helps a lot.
+  - type: checkboxes
+    id: extras
+    attributes:
+      label: Anything else installed?
+      options:
+        - label: GenPatcher
+        - label: GenTool
+        - label: Another mod (please name it below)
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything else

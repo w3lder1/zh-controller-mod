@@ -1,0 +1,112 @@
+ZERO HOUR CONTROLLER MOD - RELEASE NOTES
+========================================
+
+VERSION 1.1.0
+-------------
+First public release. Everything below (1.0.0 - 1.0.5) was tested
+privately first. The download no longer includes the debug symbols
+(generalszh.pdb).
+
+VERSION 1.0.5
+-------------
+- Credits: the window title now reads "Community Patch by TheSuperHackers +
+  Zero Hour Controller Mod 1.0.5" (it wrongly named the builder as the
+  author before); README has a credits section.
+
+VERSION 1.0.4
+-------------
+- New reticle: angular corner brackets with a small centre dot and a tick on
+  each side. It takes the colour of what it is on (olive yours, cyan ally,
+  amber neutral, red enemy); on a target the side ticks point inward, and
+  enemies get a second, inner set of corners.
+- While idle it shows your side: USA pale steel with straight ticks, China
+  pale brass with double ticks, GLA rust-tan with V ticks.
+- Very little movement: a tiny settle on a new target, a soft pulse on the
+  top tick while idle.
+- Controller settings (Features page): "Classic reticle" (the old
+  crosshair), "Faction reticle" (off = khaki for every side), "Reduced
+  motion" (no movement or pulse at all).
+
+VERSION 1.0.3 (M7)
+------------------
+Fixes from a pre-release review:
+- Menus: accepting a map with A could draw a menu that had just closed (a
+  possible crash). Maps you have beaten (with a star) can now be chosen with
+  A; before, the list was taken for the medals.
+- Closing the controller settings with B, Menu or View no longer also goes
+  back / deselects / opens the pause menu underneath.
+- RT (unit types): units that die or climb into a transport no longer make
+  RT forget the rest of the army; if a whole type is gone, RT goes to All.
+- Taking over with the mouse, unplugging the controller, switching to
+  another controller or leaving the game window: nothing the controller had
+  half-started (a held A, a quick LB/RB, a held X) finishes afterwards.
+- With another button layout, the wheels name the right buttons.
+- Holding both stick clicks restores the default buttons once, not every
+  frame.
+- Install and update: a damaged or edited install record can never make the
+  installer delete anything outside the mod's own files; an update stopped
+  half-way (game still running) can simply be run again; folders with
+  accented or non-Latin names work; Setup never replaces a generalszh.exe
+  that another program put there.
+
+VERSION 1.0.2 (M7)
+------------------
+- New: a normal Windows Setup program (ZHController-Setup-1.0.2.exe). It
+  finds your Zero Hour folder (or lets you browse to it), checks that it is
+  really Zero Hour, and adds the controller. Uninstall in Windows Settings >
+  Apps, or from the Start menu. The zip with Install.cmd stays available as
+  the manual way.
+- Setup takes over an install made earlier with Install.cmd.
+
+VERSION 1.0.1 (M7)
+------------------
+- Install.cmd finds Zero Hour when Windows' registry points one folder above
+  the game (EA App layout), and asks for the folder if it still cannot find it.
+
+VERSION 1.0.0 (M7)
+------------------
+First packaged release: an offline controller version of Zero Hour 1.04.
+It is added to your Zero Hour folder as an extra program (generalszh.exe)
+next to the normal game; a fully separate copy is an option (-Copy).
+
+What is in it
+- Camera: crosshair in the middle of the screen, left stick pans, right stick
+  rotates and zooms, LT faster, map-edge handling.
+- Selecting: tap, double tap (same type), hold to paint, whole army, army on
+  screen, cycling through unit types.
+- Orders: context order, double-tap guard, line move and guard line, force
+  attack, waypoints, unloading transports and buildings.
+- Building, training, upgrades, queues, generals powers, promotions and
+  control groups on Halo Wars style radial wheels (flat panels as an option).
+- The game's own menus with the controller: main menu, skirmish setup, map
+  select, options, save/load, pause menu, message boxes; skipping the
+  start-up videos.
+- Controller settings screen, including moving A/B/X/Y/LB/RB, with an
+  emergency reset (both stick clicks for 3 seconds, or Ctrl+Shift+F12).
+- Mouse and keyboard keep working at any time.
+
+Tested (the support list)
+- Windows 11 64-bit.
+- Command & Conquer Generals Zero Hour 1.04, EA App version, with GenPatcher.
+- Wired Xbox One controller (XInput).
+- Offline skirmish and single player, save and load.
+
+Not supported / known limits
+- Multiplayer is NOT supported: this game program is not compatible with other
+  players' games, online or on a LAN.
+- GenTool does not work with this program. It simply ignores GenTool (it uses
+  Windows' own d3d8.dll instead), so GenTool stays installed and keeps working
+  for your normal game. GenTool's features are not available in the
+  controller version.
+- Other mods and total conversions are not supported.
+- Controllers other than Xbox (XInput) controllers were not tested.
+- Typing a player name or a save-game name needs the keyboard.
+- Saves are shared with your normal game, but games saved with the controller
+  version may not load in the normal game.
+- The on-screen controller texts are in English only.
+
+Rollback
+- Your normal game is never changed: start it as before.
+- To remove the controller: Uninstall.cmd in the "ZH Controller" folder of
+  your Zero Hour folder, or delete generalszh.exe and that folder by hand.
+  See UNINSTALL in README.txt.

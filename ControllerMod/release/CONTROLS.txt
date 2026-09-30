@@ -1,0 +1,68 @@
+ZERO HOUR CONTROLLER MOD - CONTROLS (Xbox controller, default buttons)
+======================================================================
+
+In a match press View (the small left button) for this help on screen.
+A, B, X, Y, LB and RB can be moved around in the controller settings
+(View in any menu; in a match: View, then Y).
+
+CAMERA
+  Left stick ............ move the camera (the crosshair stays in the middle)
+  LT (hold) ............. move faster (while aiming or placing: slower)
+  RT (hold) ............. while aiming or placing: faster
+  Right stick ........... left/right rotate, up/down zoom
+  Right stick click ..... reset the camera
+
+SELECTING
+  A ..................... select what is under the crosshair
+                          (on one of your buildings: opens its command wheel)
+  A A (double tap) ...... select all units of that type on screen
+  Hold A ................ paint: every unit the circle touches gets selected
+  LB .................... whole army        RB ... army on screen
+  RT .................... cycle through the unit types in your selection
+  B ..................... cancel / deselect
+
+ORDERS
+  X ..................... order: move, attack, enter, repair... (what fits)
+  X X (double tap) ...... guard that spot
+  Hold X and move ....... draw a line: the selection spreads along it
+    + left stick click .. while drawing: guard line (blue)
+  LB + RB together ...... unload selected transports and buildings
+
+WHEELS (like Halo Wars)
+  Y ..................... command wheel of your selection: build, train,
+                          upgrades, abilities. D-pad down/up in it: build
+                          queue, Orders (force attack, waypoints)
+  D-pad up .............. generals powers (D-pad down in it: promotions)
+  D-pad down ............ control groups (A: select, Y: assign, X: clear)
+  Stick ................. point at a slice (it stays highlighted)
+  A or left stick click . use it
+  X or LB ............... take one out of the queue (hold: take all)
+  B or Y ................ close
+  With more than 10 slices there are two wheels: left stick and right stick.
+
+AIMING A POWER / PLACING A BUILDING
+  A or X ................ confirm      B ... back
+  Right stick ........... turn the building
+
+JUMPS
+  D-pad left ............ your bases (press again: the next one)
+  D-pad right ........... latest alerts (press again: the one before)
+
+MENUS (main menu, skirmish setup, options, save/load, pause menu)
+  D-pad / left stick .... move the gold frame
+  A ..................... select; on a drop-down list: open it, then
+                          Up/Down to choose, A keep, B cancel
+  Left / Right .......... on a slider (volume, game speed): change it
+  LB / RB ............... tabs (Official / Unofficial maps)
+  Start ................. jump to Play Game
+  B ..................... back ("Are you sure?" boxes: No)
+  View .................. controller settings
+  A, B or Start ......... at start-up: skip the videos
+  Menu (in a match) ..... pause menu
+
+BUTTONS MIXED UP?
+  Hold both stick clicks for 3 seconds, or press Ctrl+Shift+F12:
+  the default buttons come back.
+
+Typing a player name or a save-game name needs the keyboard.
+The mouse and keyboard keep working at any time.
